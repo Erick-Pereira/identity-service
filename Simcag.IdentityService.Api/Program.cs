@@ -1,63 +1,170 @@
+using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Collections.Generic;
+using MediatR;
 using Simcag.IdentityService.Application.Interfaces;
-using Simcag.IdentityService.Application.Services;
+using Simcag.IdentityService.Application.UseCases.Register;
 using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
 using Simcag.IdentityService.Infrastructure.Repositories;
-using Simcag.Shared.Contracts;
+using Simcag.IdentityService.Infrastructure.Security;
 using System.Text;
 
 DotNetEnv.Env.Load();
-
 var builder = WebApplication.CreateBuilder(args);
+var isTesting = builder.Environment.IsEnvironment("Testing");
 
-// Add services to the container.
+static string? GetEnv(params string[] keys)
+{
+    foreach (var key in keys)
+    {
+        var value = Environment.GetEnvironmentVariable(key);
+        if (!string.IsNullOrWhiteSpace(value))
+            return value;
+    }
+    return null;
+}
+
+// Configuração via .env / ambiente
+string? connectionString = null;
+if (!isTesting)
+{
+    connectionString = GetEnv("ConnectionStrings__DefaultConnection", "CONNECTIONSTRINGS__DEFAULTCONNECTION")
+        ?? throw new InvalidOperationException("Defina ConnectionStrings__DefaultConnection no .env (PostgreSQL).");
+}
+
+var jwtSecret = GetEnv("JWT__SECRET", "JWT_SECRET", "JWT_SECRETKEY");
+if (string.IsNullOrWhiteSpace(jwtSecret))
+{
+    if (!builder.Environment.IsDevelopment() && !isTesting)
+        throw new InvalidOperationException("Defina JWT__SECRET no .env.");
+    jwtSecret = DevJwtSecretFallback.Value;
+    if (builder.Environment.IsDevelopment())
+        Console.WriteLine(
+            "[Simcag.Identity] JWT__SECRET ausente: a usar segredo fixo só para Development. Defina JWT__SECRET em produção.");
+}
+
+var jwtIssuer = GetEnv("JWT__ISSUER", "Jwt__Issuer") ?? "Simcag.IdentityService";
+var jwtAudience = GetEnv("JWT__AUDIENCE", "Jwt__Audience") ?? "Simcag.Clients";
+var accessTokenMinutes = GetEnv("JWT__ACCESSTOKENEXPIRATIONMINUTES") ?? "15";
+var refreshTokenDays = GetEnv("JWT__REFRESHTOKENEXPIRATIONDAYS") ?? "7";
+
+builder.Configuration.AddInMemoryCollection(
+    new Dictionary<string, string?>
+    {
+        ["Jwt:Secret"] = jwtSecret,
+        ["Jwt:Issuer"] = jwtIssuer,
+        ["Jwt:Audience"] = jwtAudience,
+        ["Jwt:AccessTokenExpirationMinutes"] = accessTokenMinutes,
+        ["Jwt:RefreshTokenExpirationDays"] = refreshTokenDays
+    });
+
+// ===== DATABASE =====
+if (isTesting)
+{
+    builder.Services.AddDbContext<IdentityServiceDbContext>(options =>
+        options.UseInMemoryDatabase("identity_testing"));
+}
+else
+{
+    builder.Services.AddDbContext<IdentityServiceDbContext>(options =>
+        options.UseNpgsql(connectionString!,
+            npgsqlOptions => npgsqlOptions.CommandTimeout(30)));
+}
+
+// ===== MEDIATR =====
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(RegisterCommand).Assembly));
+
+// ===== APPLICATION SERVICES =====
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IPasswordHasherService, PasswordHasherService>();
+
+// ===== CONTROLLERS =====
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Database
-var connectionString = $"Host={Environment.GetEnvironmentVariable("DB__HOST")};" +
-                      $"Port={Environment.GetEnvironmentVariable("DB__PORT")};" +
-                      $"Database={Environment.GetEnvironmentVariable("DB__NAME")};" +
-                      $"Username={Environment.GetEnvironmentVariable("DB__USER")};" +
-                      $"Password={Environment.GetEnvironmentVariable("DB__PASSWORD")}";
+// ===== AUTHENTICATION - JWT =====
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer = true,
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = true,
+            ValidAudience = jwtAudience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+        // GET /api/auth/validate lê o Bearer no controller (IJwtTokenService). Não validar aqui:
+        // com [AllowAnonymous] um falhanço do JwtBearer ainda pode devolver 401 antes da action.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Path.StartsWithSegments("/api/auth/validate", StringComparison.OrdinalIgnoreCase))
+                    context.Token = null;
+                return Task.CompletedTask;
+            }
+        };
+    });
 
-builder.Services.AddDbContext<IdentityServiceDbContext>(options =>
-    options.UseNpgsql(connectionString));
+// ===== AUTHORIZATION =====
+builder.Services.AddAuthorization();
 
-// Repositories
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+// ===== HEALTH CHECKS =====
+var healthChecksBuilder = builder.Services.AddHealthChecks();
+if (!isTesting)
+    healthChecksBuilder.AddNpgSql(connectionString!, name: "PostgreSQL");
 
-// Services
-builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-
-// JWT Configuration
-var jwtKey = Environment.GetEnvironmentVariable("JWT__KEY") ?? "your-super-secure-jwt-key-here-at-least-256-bits-long";
-var jwtIssuer = Environment.GetEnvironmentVariable("JWT__ISSUER") ?? "Simcag.IdentityService";
-var jwtAudience = Environment.GetEnvironmentVariable("JWT__AUDIENCE") ?? "Simcag.Clients";
-
-builder.Services.AddSingleton(new JwtService(jwtKey, jwtIssuer, jwtAudience, 15, 7 * 24 * 60)); // 15 min access, 7 days refresh
-
-// Health Checks
-builder.Services.AddHealthChecks()
-    .AddNpgSql(connectionString, name: "PostgreSQL");
+// ===== LOGGING =====
+builder.Services.AddLogging(configure =>
+{
+    configure.ClearProviders();
+    configure.AddConsole();
+    configure.AddDebug();
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ===== DATABASE MIGRATIONS (PostgreSQL; não em ambiente de testes com InMemory) =====
+if (!isTesting)
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<IdentityServiceDbContext>();
+    await db.Database.MigrateAsync();
+}
+
+// ===== MIDDLEWARE PIPELINE =====
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsEnvironment("Testing"))
+    app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-app.Run();
+await app.RunAsync();
+
+file static class DevJwtSecretFallback
+{
+    // Manter o literal idêntico em gateway-service/Simcag.Gateway.Api/Program.cs (só Development).
+    public const string Value = "Simcag.Dev.Jwt.NotForProduction.AlignWithIdentityService.01!";
+}
+
+public partial class Program
+{
+}

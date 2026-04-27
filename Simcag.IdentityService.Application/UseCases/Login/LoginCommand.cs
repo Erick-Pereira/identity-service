@@ -1,10 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace Simcag.IdentityService.Application.UseCases.Login;
 
-namespace Simcag.IdentityService.Application.UseCases.Login
-{
-    internal class LoginCommand
-    {
-    }
-}
+using MediatR;
+
+public sealed record LoginCommand(
+    Guid TenantId,
+    string Email,
+    string Password) : IRequest<LoginCommandResult>;
+
+public sealed record LoginCommandResult(
+    bool Success,
+    string? Error,
+    string? AccessToken,
+    string? RefreshToken,
+    DateTime? ExpiresAt);

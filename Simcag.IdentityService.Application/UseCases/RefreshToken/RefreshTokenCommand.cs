@@ -1,10 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace Simcag.IdentityService.Application.UseCases.RefreshToken;
 
-namespace Simcag.IdentityService.Application.UseCases.RefreshToken
-{
-    internal class RefreshTokenCommand
-    {
-    }
-}
+using MediatR;
+
+public sealed record RefreshTokenCommand(string RefreshToken) : IRequest<RefreshTokenResult>;
+
+public sealed record RefreshTokenResult(
+    bool Success,
+    string? Error,
+    string? AccessToken,
+    string? NewRefreshToken,
+    DateTime? ExpiresAt);

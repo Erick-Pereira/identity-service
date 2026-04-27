@@ -1,5 +1,5 @@
 <Solution>
-  <Project Path="identity-service/identity-service.csproj" />
+  <Project Path="Simcag.IdentityService.Api/Simcag.IdentityService.Api.csproj" />
   <Project Path="Simcag.IdentityService.Application/Simcag.IdentityService.Application.csproj" />
   <Project Path="Simcag.IdentityService.Domain/Simcag.IdentityService.Domain.csproj" />
   <Project Path="Simcag.IdentityService.Infrastructure/Simcag.IdentityService.Infrastructure.csproj" />

@@ -1,10 +1,28 @@
+namespace Simcag.IdentityService.Infrastructure.Persistence.DbContext;
+
 using Microsoft.EntityFrameworkCore;
 using Simcag.IdentityService.Domain.Entities;
-
-namespace Simcag.IdentityService.Infrastructure.Persistence.DbContext;
+using Simcag.IdentityService.Domain.Results;
+using Simcag.IdentityService.Domain.ValueObjects;
 
 public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
+    private static TenantId TenantIdFromDb(Guid v) =>
+        TenantId.Create(v) is Result<TenantId>.Success s ? s.Value
+            : throw new InvalidOperationException("TenantId inválido lido do banco.");
+
+    private static Email EmailFromDb(string v) =>
+        Email.Create(v) is Result<Email>.Success s ? s.Value
+            : throw new InvalidOperationException("Email inválido lido do banco.");
+
+    private static PasswordHash PasswordHashFromDb(string v) =>
+        PasswordHash.CreateFromHash(v) is Result<PasswordHash>.Success s ? s.Value
+            : throw new InvalidOperationException("Hash inválido lido do banco.");
+
+    private static Role RoleFromDb(string v) =>
+        Role.Create(v) is Result<Role>.Success s ? s.Value
+            : throw new InvalidOperationException("Role inválido lido do banco.");
+
     public IdentityServiceDbContext(DbContextOptions<IdentityServiceDbContext> options)
         : base(options)
     {
@@ -15,25 +33,36 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // User Entity
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(u => u.Id);
 
-            entity.Property(u => u.Email)
-                .IsRequired()
-                .HasMaxLength(256);
+            // Value Object - TenantId
+            entity.Property(u => u.TenantId)
+                .HasConversion(v => v.Value, v => TenantIdFromDb(v))
+                .IsRequired();
 
+            // Value Object - Email
+            entity.Property(u => u.Email)
+                .HasConversion(v => v.Value, v => EmailFromDb(v))
+                .HasMaxLength(254)
+                .IsRequired();
+
+            // Value Object - PasswordHash
             entity.Property(u => u.PasswordHash)
-                .IsRequired()
-                .HasMaxLength(256);
+                .HasConversion(v => v.Value, v => PasswordHashFromDb(v))
+                .HasMaxLength(256)
+                .IsRequired();
 
             entity.Property(u => u.Name)
                 .IsRequired()
                 .HasMaxLength(100);
 
+            // Value Object - Role
             entity.Property(u => u.Role)
-                .IsRequired()
-                .HasConversion<string>();
+                .HasConversion(v => v.Value, v => RoleFromDb(v))
+                .IsRequired();
 
             entity.Property(u => u.CreatedAt)
                 .IsRequired();
@@ -44,12 +73,14 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(u => u.IsActive)
                 .IsRequired();
 
-            entity.HasIndex(u => u.Email)
+            // Indexes
+            entity.HasIndex(u => new { u.TenantId, u.Email })
                 .IsUnique();
 
-            entity.HasIndex(u => new { u.Email, u.IsActive });
+            entity.HasIndex(u => new { u.TenantId, u.Email, u.IsActive });
         });
 
+        // RefreshToken Entity
         modelBuilder.Entity<RefreshToken>(entity =>
         {
             entity.HasKey(rt => rt.Id);
@@ -59,6 +90,11 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
                 .HasMaxLength(256);
 
             entity.Property(rt => rt.UserId)
+                .IsRequired();
+
+            // Value Object - TenantId
+            entity.Property(rt => rt.TenantId)
+                .HasConversion(v => v.Value, v => TenantIdFromDb(v))
                 .IsRequired();
 
             entity.Property(rt => rt.ExpiresAt)
@@ -73,14 +109,15 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(rt => rt.RevokedAt)
                 .IsRequired(false);
 
+            // Indexes
             entity.HasIndex(rt => rt.Token)
                 .IsUnique();
 
-            entity.HasIndex(rt => new { rt.UserId, rt.IsRevoked, rt.ExpiresAt });
+            entity.HasIndex(rt => new { rt.UserId, rt.TenantId, rt.IsRevoked, rt.ExpiresAt });
 
             // Relationship with User
             entity.HasOne(rt => rt.User)
-                .WithMany() // User doesn't have navigation to RefreshTokens
+                .WithMany()
                 .HasForeignKey(rt => rt.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

@@ -1,10 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace Simcag.IdentityService.Application.UseCases.Register;
 
-namespace Simcag.IdentityService.Application.UseCases.RegisterUser
-{
-    internal class RegisterUserCommand
-    {
-    }
-}
+using MediatR;
+
+public sealed record RegisterCommand(
+    Guid TenantId,
+    string Email,
+    string Password,
+    string Name,
+    string Role) : IRequest<RegisterCommandResult>;
+
+public sealed record RegisterCommandResult(
+    bool Success,
+    string? Error,
+    Guid? UserId,
+    string? AccessToken,
+    string? RefreshToken,
+    DateTime? AccessTokenExpiresAt,
+    DateTime? UserCreatedAt);

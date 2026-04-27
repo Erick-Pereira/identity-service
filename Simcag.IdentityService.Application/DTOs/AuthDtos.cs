@@ -1,22 +1,84 @@
 namespace Simcag.IdentityService.Application.DTOs;
 
-public class RegisterRequest
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+public sealed class RegisterRequest : IValidatableObject
 {
+    [Required]
+    public Guid TenantId { get; set; }
+
+    [Required]
+    [EmailAddress]
     public string Email { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(8)]
     public string Password { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(1)]
+    [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
-    public string Role { get; set; } = "User"; // Default role
+
+    [Required]
+    /// <summary>Valores do domínio: Admin, Sindico, Conselho.</summary>
+    public string Role { get; set; } = "Sindico";
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (TenantId == Guid.Empty)
+            yield return new ValidationResult(
+                "TenantId não pode ser vazio (use o identificador do condomínio).",
+                new[] { nameof(TenantId) });
+    }
 }
 
-public class LoginRequest
+public sealed class LoginRequest : IValidatableObject
 {
+    [Required]
+    public Guid TenantId { get; set; }
+
+    [Required]
+    [EmailAddress]
     public string Email { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(8)]
     public string Password { get; set; } = string.Empty;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (TenantId == Guid.Empty)
+            yield return new ValidationResult(
+                "TenantId não pode ser vazio (use o identificador do condomínio).",
+                new[] { nameof(TenantId) });
+    }
 }
 
 public class RefreshTokenRequest
 {
+    [Required]
     public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class LogoutRequest
+{
+    /// <summary>Se preenchido, o refresh token é revogado no servidor.</summary>
+    public string? RefreshToken { get; set; }
+}
+
+/// <summary>Resposta de <c>GET /api/auth/validate</c> (compatível com introspecção por gateway/clientes).</summary>
+public sealed class TokenValidationResponse
+{
+    public bool IsValid { get; init; }
+    public string UserId { get; init; } = string.Empty;
+    /// <summary>Identificador do condomínio (tenant) associado ao token.</summary>
+    public string TenantId { get; init; } = string.Empty;
+    public string UserName { get; init; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
+    public IReadOnlyList<string> Permissions { get; init; } = Array.Empty<string>();
+    public DateTime ExpiresAt { get; init; }
 }
 
 public class AuthResult
@@ -53,40 +115,10 @@ public class AuthResult
 public class UserProfileDto
 {
     public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public bool IsActive { get; set; }
-}
-
-public class JwtTokenValidationResult
-{
-    public bool IsValid { get; set; }
-    public Guid? UserId { get; set; }
-    public string? Email { get; set; }
-    public string? Name { get; set; }
-    public string? Role { get; set; }
-    public string? Error { get; set; }
-
-    public static JwtTokenValidationResult Valid(Guid userId, string email, string name, string role)
-    {
-        return new JwtTokenValidationResult
-        {
-            IsValid = true,
-            UserId = userId,
-            Email = email,
-            Name = name,
-            Role = role
-        };
-    }
-
-    public static JwtTokenValidationResult Invalid(string error)
-    {
-        return new JwtTokenValidationResult
-        {
-            IsValid = false,
-            Error = error
-        };
-    }
 }

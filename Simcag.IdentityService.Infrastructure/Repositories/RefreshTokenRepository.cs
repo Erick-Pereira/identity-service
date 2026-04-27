@@ -1,26 +1,26 @@
+namespace Simcag.IdentityService.Infrastructure.Repositories;
+
 using Microsoft.EntityFrameworkCore;
 using Simcag.IdentityService.Application.Interfaces;
 using Simcag.IdentityService.Domain.Entities;
 using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
-using System.Threading;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
-namespace Simcag.IdentityService.Infrastructure.Repositories;
-
-public class RefreshTokenRepository : IRefreshTokenRepository
+public sealed class RefreshTokenRepository : IRefreshTokenRepository
 {
     private readonly IdentityServiceDbContext _dbContext;
+    private readonly ILogger<RefreshTokenRepository> _logger;
 
-    public RefreshTokenRepository(IdentityServiceDbContext dbContext)
+    public RefreshTokenRepository(IdentityServiceDbContext dbContext, ILogger<RefreshTokenRepository> logger)
     {
         _dbContext = dbContext;
+        _logger = logger;
     }
 
     public async Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken ct)
     {
+        // Tracking: necessário para Revoke + Update após refresh
         return await _dbContext.RefreshTokens
-            .Include(rt => rt.User)
-            .AsNoTracking()
             .FirstOrDefaultAsync(rt => rt.Token == token, ct);
     }
 
@@ -28,18 +28,20 @@ public class RefreshTokenRepository : IRefreshTokenRepository
     {
         await _dbContext.RefreshTokens.AddAsync(refreshToken, ct);
         await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Refresh token adicionado para usuário: {UserId}", refreshToken.UserId);
     }
 
     public async Task UpdateAsync(RefreshToken refreshToken, CancellationToken ct)
     {
         _dbContext.RefreshTokens.Update(refreshToken);
         await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Refresh token atualizado: {TokenId}", refreshToken.Id);
     }
 
-    public async Task RevokeAllForUserAsync(Guid userId, CancellationToken ct)
+    public async Task RevokeAllForUserAsync(Guid userId, Guid tenantId, CancellationToken ct)
     {
         var activeTokens = await _dbContext.RefreshTokens
-            .Where(rt => rt.UserId == userId && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
+            .Where(rt => rt.UserId == userId && rt.TenantId.Value == tenantId && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
             .ToListAsync(ct);
 
         foreach (var token in activeTokens)
@@ -48,13 +50,14 @@ public class RefreshTokenRepository : IRefreshTokenRepository
         }
 
         await _dbContext.SaveChangesAsync(ct);
+        _logger.LogInformation("Revogados {Count} tokens para usuário: {UserId}", activeTokens.Count, userId);
     }
 
-    public async Task<IEnumerable<RefreshToken>> GetActiveTokensForUserAsync(Guid userId, CancellationToken ct)
+    public async Task<IEnumerable<RefreshToken>> GetActiveTokensForUserAsync(Guid userId, Guid tenantId, CancellationToken ct)
     {
         return await _dbContext.RefreshTokens
             .AsNoTracking()
-            .Where(rt => rt.UserId == userId && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
+            .Where(rt => rt.UserId == userId && rt.TenantId.Value == tenantId && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
             .ToListAsync(ct);
     }
 }
