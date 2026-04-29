@@ -3,6 +3,58 @@ namespace Simcag.IdentityService.Application.DTOs;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
+/// <summary>
+/// Cria um condomínio e o seu primeiro usuário ADMIN em uma única operação.
+/// Use este endpoint quando o condomínio ainda não existe no sistema.
+/// </summary>
+public sealed class SetupRequest : IValidatableObject
+{
+    // ── Condomínio ───────────────────────────────────────────────────────────
+    [Required(ErrorMessage = "CNPJ obrigatório.")]
+    public string Cnpj { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Nome do condomínio obrigatório.")]
+    [MaxLength(200)]
+    public string Nome { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Endereço obrigatório.")]
+    [MaxLength(500)]
+    public string Endereco { get; set; } = string.Empty;
+
+    public string? Telefone { get; set; }
+
+    // ── Primeiro ADMIN ───────────────────────────────────────────────────────
+    [Required(ErrorMessage = "E-mail do administrador obrigatório.")]
+    [EmailAddress]
+    public string AdminEmail { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(8, ErrorMessage = "Senha mínima de 8 caracteres.")]
+    public string AdminPassword { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string AdminName { get; set; } = string.Empty;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        var digits = new string(Cnpj.Where(char.IsDigit).ToArray());
+        if (digits.Length != 14)
+            yield return new ValidationResult("CNPJ deve conter 14 dígitos.", [nameof(Cnpj)]);
+    }
+}
+
+public sealed class SetupResult
+{
+    public bool Success { get; init; }
+    public string? Error { get; init; }
+    public Guid CondominioId { get; init; }
+    public string? AccessToken { get; init; }
+    public string? RefreshToken { get; init; }
+    public DateTime? ExpiresAt { get; init; }
+    public UserProfileDto? User { get; init; }
+}
+
 public sealed class RegisterRequest : IValidatableObject
 {
     [Required]

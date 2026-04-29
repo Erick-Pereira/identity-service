@@ -30,6 +30,8 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Condominio> Condominios => Set<Condominio>();
+    public DbSet<ConformityItem> ConformityItems => Set<ConformityItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -120,6 +122,41 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
                 .WithMany()
                 .HasForeignKey(rt => rt.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Condominio>(entity =>
+        {
+            entity.ToTable("Condominios");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Cnpj).IsRequired().HasMaxLength(14);
+            entity.HasIndex(c => c.Cnpj).IsUnique();
+            entity.Property(c => c.Nome).IsRequired().HasMaxLength(200);
+            entity.Property(c => c.Endereco).IsRequired().HasMaxLength(300);
+            entity.Property(c => c.Telefone).HasMaxLength(40);
+            entity.Property(c => c.IsActive).IsRequired();
+            entity.Property(c => c.CreatedAt).IsRequired();
+            entity.Property(c => c.UpdatedAt).IsRequired();
+
+            entity.HasMany(c => c.Conformities)
+                .WithOne()
+                .HasForeignKey(ci => ci.CondominioId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ConformityItem>(entity =>
+        {
+            entity.ToTable("ConformityItems");
+            entity.HasKey(ci => ci.Id);
+            entity.Property(ci => ci.CondominioId).IsRequired();
+            entity.Property(ci => ci.Type).IsRequired();
+            entity.Property(ci => ci.Description).IsRequired().HasMaxLength(500);
+            entity.Property(ci => ci.DueDate);
+            entity.Property(ci => ci.CompletedAt);
+            entity.Property(ci => ci.Notes).HasMaxLength(1000);
+            entity.Property(ci => ci.CreatedAt).IsRequired();
+            entity.Property(ci => ci.UpdatedAt).IsRequired();
+            entity.Ignore(ci => ci.Status);
+            entity.HasIndex(ci => new { ci.CondominioId, ci.Type });
         });
     }
 }

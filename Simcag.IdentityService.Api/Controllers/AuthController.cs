@@ -9,9 +9,11 @@ using Simcag.IdentityService.Application.UseCases.Login;
 using Simcag.IdentityService.Application.UseCases.Logout;
 using Simcag.IdentityService.Application.UseCases.Register;
 using Simcag.IdentityService.Application.UseCases.RefreshToken;
+using Simcag.IdentityService.Application.UseCases.SetupAdmin;
 using Simcag.IdentityService.Application.Interfaces;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Linq;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -27,6 +29,60 @@ public sealed class AuthController : ControllerBase
         _mediator = mediator;
         _jwtTokenService = jwtTokenService;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Cria um condomínio e o seu primeiro usuário ADMIN em uma única chamada.
+    /// Use este endpoint para registrar um novo condomínio no sistema.
+    /// Falha se o CNPJ já estiver cadastrado (use /register para adicionar usuários a um condomínio existente).
+    /// </summary>
+    [HttpPost("setup")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(SetupResult), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Setup([FromBody] SetupRequest request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        _logger.LogInformation("Setup de condomínio solicitado — CNPJ: {Cnpj}", request.Cnpj);
+
+        var command = new SetupAdminCommand(
+            request.Cnpj, request.Nome, request.Endereco, request.Telefone,
+            request.AdminEmail, request.AdminPassword, request.AdminName);
+
+        var r = await _mediator.Send(command, ct);
+
+        if (!r.Success)
+        {
+            _logger.LogWarning("Setup falhou: {Error}", r.Error);
+            // CNPJ já cadastrado → 409 Conflict; outros erros → 400 Bad Request
+            return r.Error!.Contains("já cadastrado", StringComparison.OrdinalIgnoreCase)
+                ? Conflict(new { error = r.Error })
+                : BadRequest(new { error = r.Error });
+        }
+
+        var result = new SetupResult
+        {
+            Success = true,
+            CondominioId = r.CondominioId!.Value,
+            AccessToken = r.AccessToken,
+            RefreshToken = r.RefreshToken,
+            ExpiresAt = r.AccessTokenExpiresAt,
+            User = new UserProfileDto
+            {
+                Id = r.UserId!.Value,
+                TenantId = r.CondominioId!.Value,
+                Email = request.AdminEmail,
+                Name = request.AdminName,
+                Role = "ADMIN",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            }
+        };
+
+        return CreatedAtRoute("GetCurrentUserProfile", null, result);
     }
 
     /// <summary>Valida o access token (header Authorization: Bearer). Útil para gateway ou serviços que não validam JWT localmente.</summary>
@@ -64,20 +120,37 @@ public sealed class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Registra um novo usuário no sistema.
+    /// Registra um novo usuário em um condomínio existente (TenantId obrigatório).
+    /// Roles permitidos anonimamente: SINDICO, CONSELHO, MORADOR.
+    /// Para registrar outro ADMIN, o chamador deve ser ADMIN autenticado do mesmo condomínio.
+    /// Para criar o primeiro ADMIN de um novo condomínio, use POST /api/auth/setup.
     /// </summary>
-    /// <param name="request">Dados de registro</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Dados do usuário e tokens</returns>
     [HttpPost("register")]
     [ProducesResponseType(typeof(AuthResult), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Register(
         [FromBody] RegisterRequest request,
         CancellationToken ct)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        // Somente um Admin autenticado do mesmo tenant pode criar outro Admin.
+        if (request.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            var callerRole = User.FindFirstValue(ClaimTypes.Role)
+                             ?? User.FindFirstValue("role");
+            var callerTenantRaw = User.FindFirst("tenant_id")?.Value;
+
+            if (!callerRole?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true
+                || !Guid.TryParse(callerTenantRaw, out var callerTenant)
+                || callerTenant != request.TenantId)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    new { error = "Apenas um Admin autenticado do mesmo condomínio pode registrar outro Admin." });
+            }
+        }
 
         _logger.LogInformation("Requisição de registro recebida para tenant: {TenantId}, email: {Email}",
             request.TenantId, request.Email);

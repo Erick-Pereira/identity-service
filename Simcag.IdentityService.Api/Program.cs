@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Collections.Generic;
 using MediatR;
+using Simcag.IdentityService.Api.Workers;
 using Simcag.IdentityService.Application.Interfaces;
 using Simcag.IdentityService.Application.UseCases.Register;
 using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
@@ -80,13 +81,30 @@ builder.Services.AddMediatR(cfg =>
 // ===== APPLICATION SERVICES =====
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<ICondominioRepository, CondominioRepository>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IPasswordHasherService, PasswordHasherService>();
 
 // ===== CONTROLLERS =====
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.OpenApiInfo { Title = "SIMC-AG Service", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
+    {
+        Name        = "Authorization",
+        In          = Microsoft.OpenApi.ParameterLocation.Header,
+        Type        = Microsoft.OpenApi.SecuritySchemeType.Http,
+        Scheme      = "bearer",
+        BearerFormat = "JWT",
+        Description = "Cole apenas o JWT (sem 'Bearer ')."
+    });
+    c.AddSecurityRequirement(document => new Microsoft.OpenApi.OpenApiSecurityRequirement
+    {
+        [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer", document)] = []
+    });
+});
 
 // ===== AUTHENTICATION - JWT =====
 builder.Services
@@ -119,6 +137,10 @@ builder.Services
 
 // ===== AUTHORIZATION =====
 builder.Services.AddAuthorization();
+
+// ===== BACKGROUND WORKERS =====
+if (!isTesting)
+    builder.Services.AddHostedService<OverdueConformityWorker>();
 
 // ===== HEALTH CHECKS =====
 var healthChecksBuilder = builder.Services.AddHealthChecks();
