@@ -10,6 +10,7 @@ public sealed record LoginCommand(
 public sealed record LoginCommandResult(
     bool Success,
     string? Error,
+    Guid? UserId,
     string? AccessToken,
     string? RefreshToken,
     DateTime? ExpiresAt);

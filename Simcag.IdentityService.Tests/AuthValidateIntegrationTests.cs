@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Simcag.IdentityService.Application.DTOs;
+using Simcag.Shared.Contracts;
 
 namespace Simcag.IdentityService.Tests;
 
@@ -33,7 +34,8 @@ public sealed class AuthValidateIntegrationTests : IClassFixture<IdentityApiFact
         using var regResp = await client.PostAsJsonAsync("/api/auth/register", register);
         Assert.Equal(HttpStatusCode.Created, regResp.StatusCode);
 
-        var regAuth = await regResp.Content.ReadFromJsonAsync<AuthResult>();
+        var regWrap = await regResp.Content.ReadFromJsonAsync<ApiResponse<AuthResult>>();
+        var regAuth = regWrap?.Data;
         Assert.NotNull(regAuth?.AccessToken);
 
         using var loginResp = await client.PostAsJsonAsync(
@@ -41,7 +43,8 @@ public sealed class AuthValidateIntegrationTests : IClassFixture<IdentityApiFact
             new LoginRequest { TenantId = tenantId, Email = email, Password = password });
         Assert.Equal(HttpStatusCode.OK, loginResp.StatusCode);
 
-        var loginAuth = await loginResp.Content.ReadFromJsonAsync<AuthResult>();
+        var loginWrap = await loginResp.Content.ReadFromJsonAsync<ApiResponse<AuthResult>>();
+        var loginAuth = loginWrap?.Data;
         Assert.NotNull(loginAuth?.AccessToken);
 
         using var validateReq = new HttpRequestMessage(HttpMethod.Get, "/api/auth/validate");

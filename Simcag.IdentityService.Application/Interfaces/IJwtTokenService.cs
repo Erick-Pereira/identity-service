@@ -2,8 +2,10 @@ namespace Simcag.IdentityService.Application.Interfaces;
 
 public interface IJwtTokenService
 {
-    /// <summary>Tempos de expiração configurados (fonte única para JWT emitido e para <c>ExpiresAt</c> nas respostas).</summary>
+    /// <summary>Valor efetivo da configuração JWT (minutos).</summary>
     int AccessTokenExpirationMinutes { get; }
+
+    /// <summary>Valor efetivo da configuração JWT (dias).</summary>
     int RefreshTokenExpirationDays { get; }
 
     Task<string> GenerateAccessTokenAsync(
@@ -29,11 +31,8 @@ public sealed record JwtValidationResult(
     Guid? UserId,
     Guid? TenantId,
     string Email,
-    string? Name,
-    string? Role,
-    DateTime? ExpiresAtUtc,
     string? Error)
 {
     public static JwtValidationResult Invalid(string error) =>
-        new(false, null, null, string.Empty, null, null, null, error);
+        new(false, null, null, string.Empty, error);
 }

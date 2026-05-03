@@ -1,20 +1,64 @@
-# Build context: raiz do repositório
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-ARG BUILD_CONFIGURATION=Release
-WORKDIR /src
-COPY ["shared/shared.csproj", "shared/"]
-COPY ["identity-service/Simcag.IdentityService.Api/Simcag.IdentityService.Api.csproj", "identity-service/Simcag.IdentityService.Api/"]
-COPY ["identity-service/Simcag.IdentityService.Application/Simcag.IdentityService.Application.csproj", "identity-service/Simcag.IdentityService.Application/"]
-COPY ["identity-service/Simcag.IdentityService.Domain/Simcag.IdentityService.Domain.csproj", "identity-service/Simcag.IdentityService.Domain/"]
-COPY ["identity-service/Simcag.IdentityService.Infrastructure/Simcag.IdentityService.Infrastructure.csproj", "identity-service/Simcag.IdentityService.Infrastructure/"]
-RUN dotnet restore "identity-service/Simcag.IdentityService.Api/Simcag.IdentityService.Api.csproj"
-COPY shared/ shared/
-COPY identity-service/ identity-service/
-RUN dotnet publish "identity-service/Simcag.IdentityService.Api/Simcag.IdentityService.Api.csproj" -c ${BUILD_CONFIGURATION} -o /app/publish /p:UseAppHost=false
+# Multi-stage — contexto de build: raiz da pasta identity-service (monorepo)
+# ou repositório só do serviço (pastas Simcag.* no topo).
+# Simcag.Shared: GitHub Packages (TOKEN + NUGET_GITHUB_OWNER) ou restore local no CI.
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS builder
+
+WORKDIR /src
+
+ARG BUILD_CONFIGURATION=Release
+ARG TOKEN
+ARG NUGET_GITHUB_OWNER
+
+RUN if [ -n "${TOKEN:-}" ] && [ -n "${NUGET_GITHUB_OWNER:-}" ]; then \
+    dotnet nuget add source "https://nuget.pkg.github.com/${NUGET_GITHUB_OWNER}/index.json" \
+      --name github \
+      --username "${NUGET_GITHUB_OWNER}" \
+      --password "${TOKEN}" \
+      --store-password-in-clear-text; \
+  fi
+
+COPY ["Simcag.IdentityService.Api/Simcag.IdentityService.Api.csproj", "Simcag.IdentityService.Api/"]
+COPY ["Simcag.IdentityService.Application/Simcag.IdentityService.Application.csproj", "Simcag.IdentityService.Application/"]
+COPY ["Simcag.IdentityService.Domain/Simcag.IdentityService.Domain.csproj", "Simcag.IdentityService.Domain/"]
+COPY ["Simcag.IdentityService.Infrastructure/Simcag.IdentityService.Infrastructure.csproj", "Simcag.IdentityService.Infrastructure/"]
+
+RUN dotnet restore "Simcag.IdentityService.Api/Simcag.IdentityService.Api.csproj"
+
+COPY ["Simcag.IdentityService.Api/", "Simcag.IdentityService.Api/"]
+COPY ["Simcag.IdentityService.Application/", "Simcag.IdentityService.Application/"]
+COPY ["Simcag.IdentityService.Domain/", "Simcag.IdentityService.Domain/"]
+COPY ["Simcag.IdentityService.Infrastructure/", "Simcag.IdentityService.Infrastructure/"]
+
+RUN dotnet publish "Simcag.IdentityService.Api/Simcag.IdentityService.Api.csproj" \
+    --configuration "${BUILD_CONFIGURATION}" \
+    --output /app/publish \
+    --no-restore \
+    /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+
 WORKDIR /app
-ENV ASPNETCORE_URLS=http://+:8080
-COPY --from=build /app/publish .
+
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+
+COPY --from=builder /app/publish .
+
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && chown -R appuser:appgroup /app
+
+ENV ASPNETCORE_ENVIRONMENT=Production \
+    DOTNET_RUNNING_IN_CONTAINER=true \
+    ASPNETCORE_URLS=http://+:8080
+
 EXPOSE 8080
+
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -fsS http://localhost:8080/health >/dev/null || exit 1
+
 ENTRYPOINT ["dotnet", "Simcag.IdentityService.Api.dll"]

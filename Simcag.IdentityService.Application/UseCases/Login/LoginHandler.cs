@@ -36,7 +36,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginCom
             if (emailResult is Domain.Results.Result<Email>.Failure emailFail)
             {
                 _logger.LogWarning("Email inválido: {Error}", emailFail.Error);
-                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null);
+                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null, null);
             }
 
             var email = emailResult.Match(x => x, e => throw new InvalidOperationException());
@@ -48,17 +48,15 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginCom
             if (user == null || !user.IsActive)
             {
                 _logger.LogWarning("Usuário não encontrado ou inativo: {Email}", email.Value);
-                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null);
+                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null, null);
             }
 
             // Verificar senha
             if (!user.VerifyPassword(request.Password))
             {
                 _logger.LogWarning("Senha incorreta para usuário: {UserId}", user.Id);
-                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null);
+                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null, null);
             }
-
-            await _refreshTokenRepository.RevokeAllForUserAsync(user.Id, request.TenantId, ct);
 
             // Gerar tokens
             var accessToken = await _jwtTokenService.GenerateAccessTokenAsync(
@@ -77,7 +75,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginCom
             if (refreshTokenEntity is Domain.Results.Result<Domain.Entities.RefreshToken>.Failure rtFail)
             {
                 _logger.LogError("Erro ao criar refresh token: {Error}", rtFail.Error);
-                return new LoginCommandResult(false, "Erro ao gerar tokens", null, null, null);
+                return new LoginCommandResult(false, "Erro ao gerar tokens", null, null, null, null);
             }
 
             var refreshTokenValue = refreshTokenEntity.Match(x => x, e => throw new InvalidOperationException());
@@ -88,6 +86,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginCom
             return new LoginCommandResult(
                 true,
                 null,
+                user.Id,
                 accessToken,
                 refreshToken,
                 DateTime.UtcNow.AddMinutes(_jwtTokenService.AccessTokenExpirationMinutes));
@@ -95,7 +94,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginCom
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro durante login");
-            return new LoginCommandResult(false, "Erro interno do servidor", null, null, null);
+            return new LoginCommandResult(false, "Erro interno do servidor", null, null, null, null);
         }
     }
 }

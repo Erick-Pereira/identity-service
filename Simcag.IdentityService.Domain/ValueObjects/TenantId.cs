@@ -15,6 +15,9 @@ public sealed class TenantId : IEquatable<TenantId>
         Value = value;
     }
 
+    /// <summary>Reidratação a partir da BD (EF). Não usar para input externo.</summary>
+    public static TenantId FromStorage(Guid value) => new(value);
+
     public static Result<TenantId> Create(Guid value)
     {
         if (value == Guid.Empty)

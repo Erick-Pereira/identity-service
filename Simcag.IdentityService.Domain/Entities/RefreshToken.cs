@@ -12,7 +12,7 @@ public sealed class RefreshToken : IAggregateRoot
     public Guid Id { get; private set; }
     public string Token { get; private set; } = string.Empty;
     public Guid UserId { get; private set; }
-    public TenantId TenantId { get; private set; } = null!;
+    public TenantId TenantId { get; private set; }
     public DateTime ExpiresAt { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public bool IsRevoked { get; private set; }

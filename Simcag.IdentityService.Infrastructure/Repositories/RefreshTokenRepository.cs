@@ -3,8 +3,6 @@ namespace Simcag.IdentityService.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Simcag.IdentityService.Application.Interfaces;
 using Simcag.IdentityService.Domain.Entities;
-using Simcag.IdentityService.Domain.Results;
-using Simcag.IdentityService.Domain.ValueObjects;
 using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
 using Microsoft.Extensions.Logging;
 
@@ -21,8 +19,9 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
 
     public async Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken ct)
     {
-        // Tracking: necessário para Revoke + Update após refresh
         return await _dbContext.RefreshTokens
+            .Include(rt => rt.User)
+            .AsNoTracking()
             .FirstOrDefaultAsync(rt => rt.Token == token, ct);
     }
 
@@ -42,11 +41,8 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
 
     public async Task RevokeAllForUserAsync(Guid userId, Guid tenantId, CancellationToken ct)
     {
-        if (TenantId.Create(tenantId) is not Result<TenantId>.Success tenantOk)
-            return;
-
         var activeTokens = await _dbContext.RefreshTokens
-            .Where(rt => rt.UserId == userId && rt.TenantId == tenantOk.Value && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
+            .Where(rt => rt.UserId == userId && rt.TenantId.Value == tenantId && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
             .ToListAsync(ct);
 
         foreach (var token in activeTokens)
@@ -60,12 +56,9 @@ public sealed class RefreshTokenRepository : IRefreshTokenRepository
 
     public async Task<IEnumerable<RefreshToken>> GetActiveTokensForUserAsync(Guid userId, Guid tenantId, CancellationToken ct)
     {
-        if (TenantId.Create(tenantId) is not Result<TenantId>.Success tenantOk)
-            return Array.Empty<RefreshToken>();
-
         return await _dbContext.RefreshTokens
             .AsNoTracking()
-            .Where(rt => rt.UserId == userId && rt.TenantId == tenantOk.Value && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
+            .Where(rt => rt.UserId == userId && rt.TenantId.Value == tenantId && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
             .ToListAsync(ct);
     }
 }

@@ -1,61 +1,8 @@
 namespace Simcag.IdentityService.Application.DTOs;
 
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-/// <summary>
-/// Cria um condomínio e o seu primeiro usuário ADMIN em uma única operação.
-/// Use este endpoint quando o condomínio ainda não existe no sistema.
-/// </summary>
-public sealed class SetupRequest : IValidatableObject
-{
-    // ── Condomínio ───────────────────────────────────────────────────────────
-    [Required(ErrorMessage = "CNPJ obrigatório.")]
-    public string Cnpj { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "Nome do condomínio obrigatório.")]
-    [MaxLength(200)]
-    public string Nome { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "Endereço obrigatório.")]
-    [MaxLength(500)]
-    public string Endereco { get; set; } = string.Empty;
-
-    public string? Telefone { get; set; }
-
-    // ── Primeiro ADMIN ───────────────────────────────────────────────────────
-    [Required(ErrorMessage = "E-mail do administrador obrigatório.")]
-    [EmailAddress]
-    public string AdminEmail { get; set; } = string.Empty;
-
-    [Required]
-    [MinLength(8, ErrorMessage = "Senha mínima de 8 caracteres.")]
-    public string AdminPassword { get; set; } = string.Empty;
-
-    [Required]
-    [MaxLength(100)]
-    public string AdminName { get; set; } = string.Empty;
-
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-    {
-        var digits = new string(Cnpj.Where(char.IsDigit).ToArray());
-        if (digits.Length != 14)
-            yield return new ValidationResult("CNPJ deve conter 14 dígitos.", [nameof(Cnpj)]);
-    }
-}
-
-public sealed class SetupResult
-{
-    public bool Success { get; init; }
-    public string? Error { get; init; }
-    public Guid CondominioId { get; init; }
-    public string? AccessToken { get; init; }
-    public string? RefreshToken { get; init; }
-    public DateTime? ExpiresAt { get; init; }
-    public UserProfileDto? User { get; init; }
-}
-
-public sealed class RegisterRequest : IValidatableObject
+public class RegisterRequest
 {
     [Required]
     public Guid TenantId { get; set; }
@@ -74,19 +21,10 @@ public sealed class RegisterRequest : IValidatableObject
     public string Name { get; set; } = string.Empty;
 
     [Required]
-    /// <summary>Valores do domínio: Admin, Sindico, Conselho.</summary>
-    public string Role { get; set; } = "Sindico";
-
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-    {
-        if (TenantId == Guid.Empty)
-            yield return new ValidationResult(
-                "TenantId não pode ser vazio (use o identificador do condomínio).",
-                new[] { nameof(TenantId) });
-    }
+    public string Role { get; set; } = "User"; // Default role
 }
 
-public sealed class LoginRequest : IValidatableObject
+public class LoginRequest
 {
     [Required]
     public Guid TenantId { get; set; }
@@ -98,39 +36,12 @@ public sealed class LoginRequest : IValidatableObject
     [Required]
     [MinLength(8)]
     public string Password { get; set; } = string.Empty;
-
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-    {
-        if (TenantId == Guid.Empty)
-            yield return new ValidationResult(
-                "TenantId não pode ser vazio (use o identificador do condomínio).",
-                new[] { nameof(TenantId) });
-    }
 }
 
 public class RefreshTokenRequest
 {
     [Required]
     public string RefreshToken { get; set; } = string.Empty;
-}
-
-public class LogoutRequest
-{
-    /// <summary>Se preenchido, o refresh token é revogado no servidor.</summary>
-    public string? RefreshToken { get; set; }
-}
-
-/// <summary>Resposta de <c>GET /api/auth/validate</c> (compatível com introspecção por gateway/clientes).</summary>
-public sealed class TokenValidationResponse
-{
-    public bool IsValid { get; init; }
-    public string UserId { get; init; } = string.Empty;
-    /// <summary>Identificador do condomínio (tenant) associado ao token.</summary>
-    public string TenantId { get; init; } = string.Empty;
-    public string UserName { get; init; } = string.Empty;
-    public string Role { get; init; } = string.Empty;
-    public IReadOnlyList<string> Permissions { get; init; } = Array.Empty<string>();
-    public DateTime ExpiresAt { get; init; }
 }
 
 public class AuthResult
@@ -173,4 +84,47 @@ public class UserProfileDto
     public string Role { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public bool IsActive { get; set; }
+}
+
+/// <summary>Resposta de <c>GET /api/auth/validate</c> (corpo JSON sem envelope, para compatibilidade com clientes existentes).</summary>
+public sealed class TokenValidationResponse
+{
+    public bool IsValid { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    public string TenantId { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public string? Error { get; set; }
+}
+
+public class JwtTokenValidationResult
+{
+    public bool IsValid { get; set; }
+    public Guid? UserId { get; set; }
+    public Guid? TenantId { get; set; }
+    public string? Email { get; set; }
+    public string? Name { get; set; }
+    public string? Role { get; set; }
+    public string? Error { get; set; }
+
+    public static JwtTokenValidationResult Valid(Guid userId, Guid tenantId, string email, string name, string role)
+    {
+        return new JwtTokenValidationResult
+        {
+            IsValid = true,
+            UserId = userId,
+            TenantId = tenantId,
+            Email = email,
+            Name = name,
+            Role = role
+        };
+    }
+
+    public static JwtTokenValidationResult Invalid(string error)
+    {
+        return new JwtTokenValidationResult
+        {
+            IsValid = false,
+            Error = error
+        };
+    }
 }

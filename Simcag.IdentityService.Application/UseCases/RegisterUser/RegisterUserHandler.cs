@@ -40,7 +40,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
             if (emailResult is Domain.Results.Result<Email>.Failure emailFail)
             {
                 _logger.LogWarning("Email inválido: {Error}", emailFail.Error);
-                return new RegisterCommandResult(false, emailFail.Error, null, null, null, null, null);
+                return new RegisterCommandResult(false, emailFail.Error, null, null, null);
             }
 
             var email = emailResult.Match(x => x, e => throw new InvalidOperationException());
@@ -52,7 +52,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
             if (existingUser != null)
             {
                 _logger.LogWarning("Usuário já existe: {Email}", email.Value);
-                return new RegisterCommandResult(false, "Usuário já existe", null, null, null, null, null);
+                return new RegisterCommandResult(false, "Usuário já existe", null, null, null);
             }
 
             // Hash da senha
@@ -69,7 +69,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
             if (userResult is Domain.Results.Result<User>.Failure userFail)
             {
                 _logger.LogWarning("Erro ao criar usuário: {Error}", userFail.Error);
-                return new RegisterCommandResult(false, userFail.Error, null, null, null, null, null);
+                return new RegisterCommandResult(false, userFail.Error, null, null, null);
             }
 
             var user = userResult.Match(x => x, e => throw new InvalidOperationException());
@@ -94,7 +94,7 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
             if (refreshTokenEntity is Domain.Results.Result<RefreshToken>.Failure rtFail)
             {
                 _logger.LogError("Erro ao criar refresh token: {Error}", rtFail.Error);
-                return new RegisterCommandResult(false, "Erro ao gerar refresh token", null, null, null, null, null);
+                return new RegisterCommandResult(false, "Erro ao gerar refresh token", null, null, null);
             }
 
             var refreshTokenValue = refreshTokenEntity.Match(
@@ -104,21 +104,17 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, Re
 
             _logger.LogInformation("Usuário registrado com sucesso: {UserId}", user.Id);
 
-            var accessExpires = DateTime.UtcNow.AddMinutes(_jwtTokenService.AccessTokenExpirationMinutes);
-
             return new RegisterCommandResult(
                 true,
                 null,
                 user.Id,
                 accessToken,
-                refreshToken,
-                accessExpires,
-                user.CreatedAt);
+                refreshToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro durante registro");
-            return new RegisterCommandResult(false, "Erro interno do servidor", null, null, null, null, null);
+            return new RegisterCommandResult(false, "Erro interno do servidor", null, null, null);
         }
     }
 }

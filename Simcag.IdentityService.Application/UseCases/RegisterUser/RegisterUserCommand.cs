@@ -14,6 +14,4 @@ public sealed record RegisterCommandResult(
     string? Error,
     Guid? UserId,
     string? AccessToken,
-    string? RefreshToken,
-    DateTime? AccessTokenExpiresAt,
-    DateTime? UserCreatedAt);
+    string? RefreshToken);

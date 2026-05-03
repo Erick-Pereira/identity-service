@@ -3,7 +3,6 @@ namespace Simcag.IdentityService.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Simcag.IdentityService.Application.Interfaces;
 using Simcag.IdentityService.Domain.Entities;
-using Simcag.IdentityService.Domain.Results;
 using Simcag.IdentityService.Domain.ValueObjects;
 using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
 using Microsoft.Extensions.Logging;
@@ -21,30 +20,20 @@ public sealed class UserRepository : IUserRepository
 
     public async Task<User?> GetByIdAsync(Guid id, Guid tenantId, CancellationToken ct)
     {
-        if (TenantId.Create(tenantId) is not Result<TenantId>.Success tenantOk)
-            return null;
-
+        var tenantVo = TenantId.FromStorage(tenantId);
         return await _dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == id && u.TenantId == tenantOk.Value, ct);
+            .FirstOrDefaultAsync(u => u.Id == id && u.TenantId == tenantVo, ct);
     }
 
     public async Task<User?> GetByEmailAndTenantAsync(string email, Guid tenantId, CancellationToken ct)
     {
-        // Comparar propriedades com tipo do modelo (Email, TenantId), não .Value — assim o EF Core
-        // aplica HasConversion e traduz para a coluna (Npgsql).
-        if (Email.Create(email) is not Result<Email>.Success emailOk)
-            return null;
-
-        if (TenantId.Create(tenantId) is not Result<TenantId>.Success tenantOk)
-            return null;
-
+        var normalized = email.Trim().ToLowerInvariant();
+        var tenantVo = TenantId.FromStorage(tenantId);
+        var emailVo = Email.FromStorage(normalized);
         return await _dbContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u =>
-                u.Email == emailOk.Value &&
-                u.TenantId == tenantOk.Value &&
-                u.IsActive, ct);
+            .FirstOrDefaultAsync(u => u.Email == emailVo && u.TenantId == tenantVo && u.IsActive, ct);
     }
 
     public async Task AddAsync(User user, CancellationToken ct)
@@ -63,16 +52,11 @@ public sealed class UserRepository : IUserRepository
 
     public async Task<bool> EmailExistsAsync(string email, Guid tenantId, CancellationToken ct)
     {
-        if (Email.Create(email) is not Result<Email>.Success emailOk)
-            return false;
-
-        if (TenantId.Create(tenantId) is not Result<TenantId>.Success tenantOk)
-            return false;
-
+        var normalized = email.Trim().ToLowerInvariant();
+        var tenantVo = TenantId.FromStorage(tenantId);
+        var emailVo = Email.FromStorage(normalized);
         return await _dbContext.Users
             .AsNoTracking()
-            .AnyAsync(u =>
-                u.Email == emailOk.Value &&
-                u.TenantId == tenantOk.Value, ct);
+            .AnyAsync(u => u.Email == emailVo && u.TenantId == tenantVo, ct);
     }
 }

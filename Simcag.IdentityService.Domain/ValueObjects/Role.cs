@@ -19,6 +19,9 @@ public sealed class Role : IEquatable<Role>
         Value = value;
     }
 
+    /// <summary>Reidratação a partir da BD (EF). Não usar para input externo.</summary>
+    public static Role FromStorage(string value) => new(value);
+
     public static Result<Role> Create(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

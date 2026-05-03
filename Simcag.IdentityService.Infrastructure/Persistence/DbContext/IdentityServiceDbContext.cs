@@ -1,28 +1,12 @@
-namespace Simcag.IdentityService.Infrastructure.Persistence.DbContext;
-
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Simcag.IdentityService.Domain.Entities;
-using Simcag.IdentityService.Domain.Results;
 using Simcag.IdentityService.Domain.ValueObjects;
+
+namespace Simcag.IdentityService.Infrastructure.Persistence.DbContext;
 
 public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
-    private static TenantId TenantIdFromDb(Guid v) =>
-        TenantId.Create(v) is Result<TenantId>.Success s ? s.Value
-            : throw new InvalidOperationException("TenantId inválido lido do banco.");
-
-    private static Email EmailFromDb(string v) =>
-        Email.Create(v) is Result<Email>.Success s ? s.Value
-            : throw new InvalidOperationException("Email inválido lido do banco.");
-
-    private static PasswordHash PasswordHashFromDb(string v) =>
-        PasswordHash.CreateFromHash(v) is Result<PasswordHash>.Success s ? s.Value
-            : throw new InvalidOperationException("Hash inválido lido do banco.");
-
-    private static Role RoleFromDb(string v) =>
-        Role.Create(v) is Result<Role>.Success s ? s.Value
-            : throw new InvalidOperationException("Role inválido lido do banco.");
-
     public IdentityServiceDbContext(DbContextOptions<IdentityServiceDbContext> options)
         : base(options)
     {
@@ -35,36 +19,83 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // User Entity
+        modelBuilder.Entity<Condominio>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+
+            entity.Property(c => c.Cnpj)
+                .IsRequired()
+                .HasMaxLength(14);
+
+            entity.Property(c => c.Nome)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(c => c.Endereco)
+                .IsRequired()
+                .HasMaxLength(300);
+
+            entity.Property(c => c.Telefone)
+                .IsRequired()
+                .HasMaxLength(40);
+
+            entity.Property(c => c.IsActive).IsRequired();
+            entity.Property(c => c.CreatedAt).IsRequired();
+            entity.Property(c => c.UpdatedAt).IsRequired();
+
+            entity.HasIndex(c => c.Cnpj).IsUnique();
+
+            entity.HasMany(c => c.Conformities)
+                .WithOne()
+                .HasForeignKey(ci => ci.CondominioId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ConformityItem>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+
+            entity.Property(c => c.Type)
+                .IsRequired()
+                .HasConversion<int>();
+
+            entity.Property(c => c.Description)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(c => c.DueDate);
+            entity.Property(c => c.CompletedAt);
+            entity.Property(c => c.Notes).HasMaxLength(1000);
+            entity.Property(c => c.CreatedAt).IsRequired();
+            entity.Property(c => c.UpdatedAt).IsRequired();
+
+            entity.HasIndex(c => new { c.CondominioId, c.Type });
+        });
+
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(u => u.Id);
 
-            // Value Object - TenantId
             entity.Property(u => u.TenantId)
-                .HasConversion(v => v.Value, v => TenantIdFromDb(v))
-                .IsRequired();
+                .HasConversion(new ValueConverter<TenantId, Guid>(v => v.Value, v => TenantId.FromStorage(v)));
 
-            // Value Object - Email
             entity.Property(u => u.Email)
-                .HasConversion(v => v.Value, v => EmailFromDb(v))
-                .HasMaxLength(254)
-                .IsRequired();
+                .HasConversion(new ValueConverter<Email, string>(v => v.Value, v => Email.FromStorage(v)))
+                .IsRequired()
+                .HasMaxLength(254);
 
-            // Value Object - PasswordHash
             entity.Property(u => u.PasswordHash)
-                .HasConversion(v => v.Value, v => PasswordHashFromDb(v))
-                .HasMaxLength(256)
-                .IsRequired();
+                .HasConversion(new ValueConverter<PasswordHash, string>(v => v.Value, v => PasswordHash.FromStorage(v)))
+                .IsRequired()
+                .HasMaxLength(256);
 
             entity.Property(u => u.Name)
                 .IsRequired()
                 .HasMaxLength(100);
 
-            // Value Object - Role
             entity.Property(u => u.Role)
-                .HasConversion(v => v.Value, v => RoleFromDb(v))
-                .IsRequired();
+                .IsRequired()
+                .HasConversion(new ValueConverter<Role, string>(r => r.Value, v => Role.FromStorage(v)));
 
             entity.Property(u => u.CreatedAt)
                 .IsRequired();
@@ -75,28 +106,22 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(u => u.IsActive)
                 .IsRequired();
 
-            // Indexes
-            entity.HasIndex(u => new { u.TenantId, u.Email })
-                .IsUnique();
-
+            entity.HasIndex(u => new { u.TenantId, u.Email }).IsUnique();
             entity.HasIndex(u => new { u.TenantId, u.Email, u.IsActive });
         });
 
-        // RefreshToken Entity
         modelBuilder.Entity<RefreshToken>(entity =>
         {
             entity.HasKey(rt => rt.Id);
+
+            entity.Property(rt => rt.TenantId)
+                .HasConversion(new ValueConverter<TenantId, Guid>(v => v.Value, v => TenantId.FromStorage(v)));
 
             entity.Property(rt => rt.Token)
                 .IsRequired()
                 .HasMaxLength(256);
 
             entity.Property(rt => rt.UserId)
-                .IsRequired();
-
-            // Value Object - TenantId
-            entity.Property(rt => rt.TenantId)
-                .HasConversion(v => v.Value, v => TenantIdFromDb(v))
                 .IsRequired();
 
             entity.Property(rt => rt.ExpiresAt)
@@ -111,7 +136,6 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(rt => rt.RevokedAt)
                 .IsRequired(false);
 
-            // Indexes
             entity.HasIndex(rt => rt.Token)
                 .IsUnique();
 
@@ -119,44 +143,9 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
 
             // Relationship with User
             entity.HasOne(rt => rt.User)
-                .WithMany()
+                .WithMany() // User doesn't have navigation to RefreshTokens
                 .HasForeignKey(rt => rt.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<Condominio>(entity =>
-        {
-            entity.ToTable("Condominios");
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.Cnpj).IsRequired().HasMaxLength(14);
-            entity.HasIndex(c => c.Cnpj).IsUnique();
-            entity.Property(c => c.Nome).IsRequired().HasMaxLength(200);
-            entity.Property(c => c.Endereco).IsRequired().HasMaxLength(300);
-            entity.Property(c => c.Telefone).HasMaxLength(40);
-            entity.Property(c => c.IsActive).IsRequired();
-            entity.Property(c => c.CreatedAt).IsRequired();
-            entity.Property(c => c.UpdatedAt).IsRequired();
-
-            entity.HasMany(c => c.Conformities)
-                .WithOne()
-                .HasForeignKey(ci => ci.CondominioId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<ConformityItem>(entity =>
-        {
-            entity.ToTable("ConformityItems");
-            entity.HasKey(ci => ci.Id);
-            entity.Property(ci => ci.CondominioId).IsRequired();
-            entity.Property(ci => ci.Type).IsRequired();
-            entity.Property(ci => ci.Description).IsRequired().HasMaxLength(500);
-            entity.Property(ci => ci.DueDate);
-            entity.Property(ci => ci.CompletedAt);
-            entity.Property(ci => ci.Notes).HasMaxLength(1000);
-            entity.Property(ci => ci.CreatedAt).IsRequired();
-            entity.Property(ci => ci.UpdatedAt).IsRequired();
-            entity.Ignore(ci => ci.Status);
-            entity.HasIndex(ci => new { ci.CondominioId, ci.Type });
         });
     }
 }

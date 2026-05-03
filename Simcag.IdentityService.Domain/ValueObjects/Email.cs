@@ -15,6 +15,9 @@ public sealed class Email : IEquatable<Email>
         Value = value;
     }
 
+    /// <summary>Reidratação a partir da BD (EF). Não usar para input externo.</summary>
+    public static Email FromStorage(string value) => new(value);
+
     /// <summary>
     /// Factory method para criar um Email com validação.
     /// </summary>

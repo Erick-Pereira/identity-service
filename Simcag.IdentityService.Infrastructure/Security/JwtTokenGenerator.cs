@@ -11,13 +11,15 @@ using Microsoft.Extensions.Logging;
 
 public sealed class JwtTokenService : IJwtTokenService
 {
+    public int AccessTokenExpirationMinutes => _accessTokenExpirationMinutes;
+    public int RefreshTokenExpirationDays => _refreshTokenExpirationDays;
+
     private readonly string _secretKey;
     private readonly string _issuer;
     private readonly string _audience;
+    private readonly int _accessTokenExpirationMinutes;
+    private readonly int _refreshTokenExpirationDays;
     private readonly ILogger<JwtTokenService> _logger;
-
-    public int AccessTokenExpirationMinutes { get; }
-    public int RefreshTokenExpirationDays { get; }
 
     public JwtTokenService(
         IConfiguration configuration,
@@ -27,8 +29,8 @@ public sealed class JwtTokenService : IJwtTokenService
         _secretKey = section["Secret"] ?? throw new InvalidOperationException("JWT Secret não configurado");
         _issuer = section["Issuer"] ?? "Simcag.IdentityService";
         _audience = section["Audience"] ?? "Simcag.Clients";
-        AccessTokenExpirationMinutes = int.Parse(section["AccessTokenExpirationMinutes"] ?? "15");
-        RefreshTokenExpirationDays = int.Parse(section["RefreshTokenExpirationDays"] ?? "7");
+        _accessTokenExpirationMinutes = int.Parse(section["AccessTokenExpirationMinutes"] ?? "15");
+        _refreshTokenExpirationDays = int.Parse(section["RefreshTokenExpirationDays"] ?? "7");
         _logger = logger;
 
         ValidateConfiguration();
@@ -39,10 +41,10 @@ public sealed class JwtTokenService : IJwtTokenService
         if (_secretKey.Length < 32)
             throw new InvalidOperationException("JWT Secret deve ter pelo menos 32 caracteres");
 
-        if (AccessTokenExpirationMinutes <= 0)
+        if (_accessTokenExpirationMinutes <= 0)
             throw new InvalidOperationException("Access Token expiration deve ser > 0");
 
-        if (RefreshTokenExpirationDays <= 0)
+        if (_refreshTokenExpirationDays <= 0)
             throw new InvalidOperationException("Refresh Token expiration deve ser > 0");
     }
 
@@ -71,7 +73,7 @@ public sealed class JwtTokenService : IJwtTokenService
             issuer: _issuer,
             audience: _audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(AccessTokenExpirationMinutes),
+            expires: DateTime.UtcNow.AddMinutes(_accessTokenExpirationMinutes),
             signingCredentials: credentials);
 
         var tokenValue = new JwtSecurityTokenHandler().WriteToken(token);
@@ -101,7 +103,6 @@ public sealed class JwtTokenService : IJwtTokenService
     {
         try
         {
-            // Preservar nomes curtos JWT (sub, email, …); com MapInboundClaims=true o "sub" vira NameIdentifier e falha o FindFirst abaixo.
             var tokenHandler = new JwtSecurityTokenHandler { MapInboundClaims = false };
             var key = Encoding.UTF8.GetBytes(_secretKey);
 
@@ -114,28 +115,25 @@ public sealed class JwtTokenService : IJwtTokenService
                 ValidateAudience = true,
                 ValidAudience = _audience,
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero
-            }, out var validatedToken);
+                ClockSkew = TimeSpan.FromMinutes(2),
+                NameClaimType = JwtRegisteredClaimNames.Sub,
+                RoleClaimType = ClaimTypes.Role
+            }, out _);
 
-            var userIdClaim = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var userIdClaim = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var tenantIdClaim = principal.FindFirst("tenant_id")?.Value;
-            var emailClaim = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
-            var nameClaim = principal.FindFirst("name")?.Value;
-            var roleClaim = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var emailClaim = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value
+                ?? principal.FindFirst(ClaimTypes.Email)?.Value;
 
             if (string.IsNullOrEmpty(userIdClaim) || string.IsNullOrEmpty(tenantIdClaim))
                 return JwtValidationResult.Invalid("Claims obrigatórios faltando");
-
-            var expires = validatedToken is JwtSecurityToken jwt ? jwt.ValidTo : (DateTime?)null;
 
             return new JwtValidationResult(
                 IsValid: true,
                 UserId: Guid.Parse(userIdClaim),
                 TenantId: Guid.Parse(tenantIdClaim),
                 Email: emailClaim ?? string.Empty,
-                Name: nameClaim,
-                Role: roleClaim,
-                ExpiresAtUtc: expires,
                 Error: null);
         }
         catch (SecurityTokenExpiredException)
