@@ -27,7 +27,7 @@
     <ProjectReference Include="..\Simcag.IdentityService.Application\Simcag.IdentityService.Application.csproj" />
     <ProjectReference Include="..\Simcag.IdentityService.Domain\Simcag.IdentityService.Domain.csproj" />
     <ProjectReference Include="..\Simcag.IdentityService.Infrastructure\Simcag.IdentityService.Infrastructure.csproj" />
-    <PackageReference Include="Simcag.Shared" Version="1.0.0" />
+    <PackageReference Include="Simcag.Shared" Version="1.0.3" />
   </ItemGroup>
 
 </Project>

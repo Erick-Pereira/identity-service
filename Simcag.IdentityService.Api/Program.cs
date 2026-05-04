@@ -11,9 +11,12 @@ using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
 using Simcag.IdentityService.Infrastructure.Repositories;
 using Simcag.IdentityService.Infrastructure.Security;
 using System.Text;
+using Simcag.Shared.Hosting;
 
-DotNetEnv.Env.Load();
+DotNetEnv.Env.NoClobber().Load();
+ContainerListenConfiguration.NormalizeAspNetCoreListenUrlsInContainer();
 var builder = WebApplication.CreateBuilder(args);
+ContainerListenConfiguration.ApplyDockerListenUrls(builder);
 var isTesting = builder.Environment.IsEnvironment("Testing");
 
 static string? GetEnv(params string[] keys)
