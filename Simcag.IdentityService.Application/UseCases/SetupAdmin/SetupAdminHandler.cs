@@ -10,7 +10,7 @@ using RoleVo = Simcag.IdentityService.Domain.ValueObjects.Role;
 
 public sealed class SetupAdminHandler : IRequestHandler<SetupAdminCommand, SetupAdminResult>
 {
-    private readonly ICondominioRepository _condominioRepo;
+    private readonly ICondominiumRepository _condominiumRepo;
     private readonly IUserRepository _userRepo;
     private readonly IRefreshTokenRepository _refreshTokenRepo;
     private readonly IPasswordHasherService _passwordHasher;
@@ -18,14 +18,14 @@ public sealed class SetupAdminHandler : IRequestHandler<SetupAdminCommand, Setup
     private readonly ILogger<SetupAdminHandler> _logger;
 
     public SetupAdminHandler(
-        ICondominioRepository condominioRepo,
+        ICondominiumRepository condominiumRepo,
         IUserRepository userRepo,
         IRefreshTokenRepository refreshTokenRepo,
         IPasswordHasherService passwordHasher,
         IJwtTokenService jwtTokenService,
         ILogger<SetupAdminHandler> logger)
     {
-        _condominioRepo = condominioRepo;
+        _condominiumRepo = condominiumRepo;
         _userRepo = userRepo;
         _refreshTokenRepo = refreshTokenRepo;
         _passwordHasher = passwordHasher;
@@ -40,7 +40,7 @@ public sealed class SetupAdminHandler : IRequestHandler<SetupAdminCommand, Setup
         try
         {
             // Verificar se o condomínio já existe (CNPJ já cadastrado)
-            var existing = await _condominioRepo.GetByCnpjAsync(NormalizeCnpj(request.Cnpj), ct);
+            var existing = await _condominiumRepo.GetByCnpjAsync(NormalizeCnpj(request.Cnpj), ct);
             if (existing is not null)
                 return Fail("CNPJ já cadastrado. Peça ao administrador do condomínio que crie sua conta.");
 
@@ -52,10 +52,10 @@ public sealed class SetupAdminHandler : IRequestHandler<SetupAdminCommand, Setup
             var email = emailResult.Match(x => x, _ => throw new InvalidOperationException());
 
             // Criar condomínio
-            Condominio condo;
+            Condominium condo;
             try
             {
-                condo = Condominio.Create(request.Cnpj, request.Nome, request.Endereco, request.Telefone);
+                condo = Condominium.Create(request.Cnpj, request.Name, request.Address, request.Phone);
             }
             catch (ArgumentException ex)
             {
@@ -71,7 +71,7 @@ public sealed class SetupAdminHandler : IRequestHandler<SetupAdminCommand, Setup
             var user = userResult.Match(x => x, _ => throw new InvalidOperationException());
 
             // Persistir condomínio e usuário
-            await _condominioRepo.AddAsync(condo, ct);
+            await _condominiumRepo.AddAsync(condo, ct);
             await _userRepo.AddAsync(user, ct);
 
             // Gerar tokens
@@ -91,7 +91,7 @@ public sealed class SetupAdminHandler : IRequestHandler<SetupAdminCommand, Setup
 
             await _refreshTokenRepo.AddAsync(rtResult.Match(x => x, _ => throw new InvalidOperationException()), ct);
 
-            _logger.LogInformation("Setup concluído — condomínio: {CondominioId}, admin: {UserId}", condo.Id, user.Id);
+            _logger.LogInformation("Setup complete — condominium: {CondominiumId}, admin: {UserId}", condo.Id, user.Id);
 
             return new SetupAdminResult(
                 true, null,

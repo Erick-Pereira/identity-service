@@ -14,28 +14,32 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-    public DbSet<Condominio> Condominios => Set<Condominio>();
+    public DbSet<Condominium> Condominiums => Set<Condominium>();
     public DbSet<ConformityItem> ConformityItems => Set<ConformityItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Condominio>(entity =>
+        modelBuilder.Entity<Condominium>(entity =>
         {
+            entity.ToTable("Condominios");
             entity.HasKey(c => c.Id);
 
             entity.Property(c => c.Cnpj)
                 .IsRequired()
                 .HasMaxLength(14);
 
-            entity.Property(c => c.Nome)
+            entity.Property(c => c.Name)
+                .HasColumnName("Nome")
                 .IsRequired()
                 .HasMaxLength(200);
 
-            entity.Property(c => c.Endereco)
+            entity.Property(c => c.Address)
+                .HasColumnName("Endereco")
                 .IsRequired()
                 .HasMaxLength(300);
 
-            entity.Property(c => c.Telefone)
+            entity.Property(c => c.Phone)
+                .HasColumnName("Telefone")
                 .IsRequired()
                 .HasMaxLength(40);
 
@@ -47,13 +51,17 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
 
             entity.HasMany(c => c.Conformities)
                 .WithOne()
-                .HasForeignKey(ci => ci.CondominioId)
+                .HasForeignKey(ci => ci.CondominiumId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ConformityItem>(entity =>
         {
+            entity.ToTable("ConformityItems");
             entity.HasKey(c => c.Id);
+
+            entity.Property(c => c.CondominiumId)
+                .HasColumnName("CondominioId");
 
             entity.Property(c => c.Type)
                 .IsRequired()
@@ -69,7 +77,7 @@ public class IdentityServiceDbContext : Microsoft.EntityFrameworkCore.DbContext
             entity.Property(c => c.CreatedAt).IsRequired();
             entity.Property(c => c.UpdatedAt).IsRequired();
 
-            entity.HasIndex(c => new { c.CondominioId, c.Type });
+            entity.HasIndex(c => new { c.CondominiumId, c.Type });
         });
 
         modelBuilder.Entity<User>(entity =>

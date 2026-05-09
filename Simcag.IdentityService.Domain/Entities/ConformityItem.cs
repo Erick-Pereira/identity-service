@@ -3,14 +3,14 @@ using System;
 namespace Simcag.IdentityService.Domain.Entities;
 
 /// <summary>
-/// Item de conformidade regulatória do condomínio (Sprint 4 do plano).
-/// Status é computado em runtime: <see cref="ConformityStatus.Completed"/> /
+/// Regulatory conformity item for a condominium.
+/// Status is computed: <see cref="ConformityStatus.Completed"/> /
 /// <see cref="ConformityStatus.Overdue"/> / <see cref="ConformityStatus.Pending"/>.
 /// </summary>
 public sealed class ConformityItem
 {
     public Guid Id { get; private set; }
-    public Guid CondominioId { get; private set; }
+    public Guid CondominiumId { get; private set; }
     public ConformityType Type { get; private set; }
     public string Description { get; private set; } = string.Empty;
     public DateTime? DueDate { get; private set; }
@@ -26,13 +26,13 @@ public sealed class ConformityItem
 
     private ConformityItem() { }
 
-    internal static ConformityItem CreateDefault(Guid condominioId, ConformityType type, string description, DateTime? dueDate)
+    internal static ConformityItem CreateDefault(Guid condominiumId, ConformityType type, string description, DateTime? dueDate)
     {
-        if (type == ConformityType.Custom) throw new ArgumentException("Use CreateCustom para tipo CUSTOM.");
+        if (type == ConformityType.Custom) throw new ArgumentException("Use CreateCustom for CUSTOM type.");
         return new ConformityItem
         {
             Id = Guid.NewGuid(),
-            CondominioId = condominioId,
+            CondominiumId = condominiumId,
             Type = type,
             Description = description.Trim(),
             DueDate = dueDate,
@@ -41,15 +41,15 @@ public sealed class ConformityItem
         };
     }
 
-    internal static ConformityItem CreateCustom(Guid condominioId, string description, DateTime? dueDate)
+    internal static ConformityItem CreateCustom(Guid condominiumId, string description, DateTime? dueDate)
     {
         if (string.IsNullOrWhiteSpace(description))
-            throw new ArgumentException("Descrição obrigatória para item custom.");
+            throw new ArgumentException("Description is required for a custom item.");
 
         return new ConformityItem
         {
             Id = Guid.NewGuid(),
-            CondominioId = condominioId,
+            CondominiumId = condominiumId,
             Type = ConformityType.Custom,
             Description = description.Trim(),
             DueDate = dueDate,

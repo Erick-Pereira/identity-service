@@ -53,8 +53,8 @@ public sealed class OverdueConformityWorker : BackgroundService
                     foreach (var item in overdue)
                     {
                         _logger.LogWarning(
-                            "Conformidade OVERDUE: condominio={CondominioId} type={Type} dueDate={DueDate}",
-                            item.CondominioId, item.Type, item.DueDate);
+                            "Conformity OVERDUE: condominium={CondominiumId} type={Type} dueDate={DueDate}",
+                            item.CondominiumId, item.Type, item.DueDate);
                     }
                 }
             }

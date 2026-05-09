@@ -4,17 +4,16 @@ using System.Collections.Generic;
 namespace Simcag.IdentityService.Domain.Entities;
 
 /// <summary>
-/// Tenant principal do sistema — agregado raiz que representa um condomínio.
-/// Cada <see cref="User"/> (exceto ADMIN) pertence a um <see cref="Condominio"/>.
-/// Toda query de qualquer serviço é filtrada por <see cref="Id"/>.
+/// Root tenant aggregate — a condominium entity.
+/// Each <see cref="User"/> (except cross-tenant ADMIN) belongs to one <see cref="Condominium"/>.
 /// </summary>
-public sealed class Condominio : IAggregateRoot
+public sealed class Condominium : IAggregateRoot
 {
     public Guid Id { get; private set; }
     public string Cnpj { get; private set; } = null!;
-    public string Nome { get; private set; } = null!;
-    public string Endereco { get; private set; } = null!;
-    public string Telefone { get; private set; } = string.Empty;
+    public string Name { get; private set; } = null!;
+    public string Address { get; private set; } = null!;
+    public string Phone { get; private set; } = string.Empty;
     public bool IsActive { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
@@ -22,40 +21,40 @@ public sealed class Condominio : IAggregateRoot
     private readonly List<ConformityItem> _conformities = new();
     public IReadOnlyCollection<ConformityItem> Conformities => _conformities.AsReadOnly();
 
-    private Condominio() { }
+    private Condominium() { }
 
-    private Condominio(string cnpj, string nome, string endereco, string telefone)
+    private Condominium(string cnpj, string name, string address, string phone)
     {
         Id = Guid.NewGuid();
         Cnpj = cnpj;
-        Nome = nome.Trim();
-        Endereco = endereco.Trim();
-        Telefone = (telefone ?? string.Empty).Trim();
+        Name = name.Trim();
+        Address = address.Trim();
+        Phone = (phone ?? string.Empty).Trim();
         IsActive = true;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public static Condominio Create(string cnpj, string nome, string endereco, string? telefone = null)
+    public static Condominium Create(string cnpj, string name, string address, string? phone = null)
     {
-        if (string.IsNullOrWhiteSpace(nome)) throw new ArgumentException("Nome obrigatório.");
-        if (string.IsNullOrWhiteSpace(endereco)) throw new ArgumentException("Endereço obrigatório.");
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name is required.");
+        if (string.IsNullOrWhiteSpace(address)) throw new ArgumentException("Address is required.");
         var normalizedCnpj = NormalizeCnpj(cnpj);
-        if (normalizedCnpj is null) throw new ArgumentException("CNPJ inválido.", nameof(cnpj));
+        if (normalizedCnpj is null) throw new ArgumentException("Invalid CNPJ.", nameof(cnpj));
 
-        var condo = new Condominio(normalizedCnpj, nome, endereco, telefone ?? string.Empty);
+        var condo = new Condominium(normalizedCnpj, name, address, phone ?? string.Empty);
         condo.SeedDefaultConformities();
         return condo;
     }
 
-    public void Update(string nome, string endereco, string? telefone)
+    public void Update(string name, string address, string? phone)
     {
-        if (string.IsNullOrWhiteSpace(nome)) throw new ArgumentException("Nome obrigatório.");
-        if (string.IsNullOrWhiteSpace(endereco)) throw new ArgumentException("Endereço obrigatório.");
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name is required.");
+        if (string.IsNullOrWhiteSpace(address)) throw new ArgumentException("Address is required.");
 
-        Nome = nome.Trim();
-        Endereco = endereco.Trim();
-        Telefone = (telefone ?? Telefone).Trim();
+        Name = name.Trim();
+        Address = address.Trim();
+        Phone = (phone ?? Phone).Trim();
         UpdatedAt = DateTime.UtcNow;
     }
 

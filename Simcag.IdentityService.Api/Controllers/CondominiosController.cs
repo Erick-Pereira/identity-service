@@ -14,10 +14,10 @@ using System.Linq;
 [Produces("application/json")]
 public sealed class CondominiosController : ControllerBase
 {
-    private readonly ICondominioRepository _repo;
+    private readonly ICondominiumRepository _repo;
     private readonly ILogger<CondominiosController> _logger;
 
-    public CondominiosController(ICondominioRepository repo, ILogger<CondominiosController> logger)
+    public CondominiosController(ICondominiumRepository repo, ILogger<CondominiosController> logger)
     {
         _repo = repo;
         _logger = logger;
@@ -32,32 +32,30 @@ public sealed class CondominiosController : ControllerBase
     }
 
     /// <summary>
-    /// Pesquisa pública de condomínios por nome ou CNPJ (sem autenticação).
-    /// Retorna apenas dados públicos (id, nome, cnpj) para que o usuário descubra o TenantId
-    /// antes de fazer login ou registro.
+    /// Public condominium search by name or CNPJ (no authentication).
     /// </summary>
     [HttpGet("lookup")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(IEnumerable<CondominioLookupDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IEnumerable<CondominiumLookupDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Lookup([FromQuery] string? q, CancellationToken ct)
     {
         var all = await _repo.ListAsync(ct);
 
-        IEnumerable<Condominio> result = all.Where(c => c.IsActive);
+        IEnumerable<Condominium> result = all.Where(c => c.IsActive);
 
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim();
             var digits = new string(term.Where(char.IsDigit).ToArray());
             result = result.Where(c =>
-                c.Nome.Contains(term, StringComparison.OrdinalIgnoreCase)
+                c.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
                 || (digits.Length > 0 && c.Cnpj.Contains(digits)));
         }
 
-        return Ok(result.Select(c => new CondominioLookupDto
+        return Ok(result.Select(c => new CondominiumLookupDto
         {
             Id   = c.Id,
-            Nome = c.Nome,
+            Name = c.Name,
             Cnpj = FormatCnpj(c.Cnpj)
         }));
     }
@@ -68,8 +66,8 @@ public sealed class CondominiosController : ControllerBase
             : digits;
 
     [HttpPost]
-    [ProducesResponseType(typeof(CondominioDto), StatusCodes.Status201Created)]
-    public async Task<IActionResult> Create([FromBody] CondominioRequest req, CancellationToken ct)
+    [ProducesResponseType(typeof(CondominiumDto), StatusCodes.Status201Created)]
+    public async Task<IActionResult> Create([FromBody] CondominiumRequest req, CancellationToken ct)
     {
         if (!IsAdmin())
             return Forbid();
@@ -78,10 +76,10 @@ public sealed class CondominiosController : ControllerBase
         if (existing is not null)
             return Conflict(new { error = "CNPJ já cadastrado" });
 
-        Condominio condo;
+        Condominium condo;
         try
         {
-            condo = Condominio.Create(req.Cnpj, req.Nome, req.Endereco, req.Telefone);
+            condo = Condominium.Create(req.Cnpj, req.Name, req.Address, req.Phone);
         }
         catch (ArgumentException ex)
         {
@@ -93,7 +91,7 @@ public sealed class CondominiosController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<CondominioDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(IEnumerable<CondominiumDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct)
     {
         if (IsAdmin())
@@ -110,7 +108,7 @@ public sealed class CondominiosController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(CondominioDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(CondominiumDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         if (!IsAdmin())
@@ -124,8 +122,8 @@ public sealed class CondominiosController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [ProducesResponseType(typeof(CondominioDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> Update(Guid id, [FromBody] CondominioRequest req, CancellationToken ct)
+    [ProducesResponseType(typeof(CondominiumDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] CondominiumRequest req, CancellationToken ct)
     {
         if (!IsAdmin())
         {
@@ -138,7 +136,7 @@ public sealed class CondominiosController : ControllerBase
 
         try
         {
-            c.Update(req.Nome, req.Endereco, req.Telefone);
+            c.Update(req.Name, req.Address, req.Phone);
         }
         catch (ArgumentException ex)
         {
@@ -225,13 +223,13 @@ public sealed class CondominiosController : ControllerBase
         return Ok(ToDto(item));
     }
 
-    private static CondominioDto ToDto(Condominio c) => new()
+    private static CondominiumDto ToDto(Condominium c) => new()
     {
         Id = c.Id,
         Cnpj = c.Cnpj,
-        Nome = c.Nome,
-        Endereco = c.Endereco,
-        Telefone = c.Telefone,
+        Name = c.Name,
+        Address = c.Address,
+        Phone = c.Phone,
         IsActive = c.IsActive,
         CreatedAt = c.CreatedAt
     };
@@ -239,7 +237,7 @@ public sealed class CondominiosController : ControllerBase
     private static ConformityItemDto ToDto(ConformityItem item) => new()
     {
         Id = item.Id,
-        CondominioId = item.CondominioId,
+        CondominiumId = item.CondominiumId,
         Type = item.Type.ToString(),
         Description = item.Description,
         DueDate = item.DueDate,

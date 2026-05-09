@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using MediatR;
 using Simcag.IdentityService.Api.Workers;
 using Simcag.IdentityService.Application.Interfaces;
+using Simcag.IdentityService.Application.Services;
 using Simcag.IdentityService.Application.UseCases.Register;
 using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
 using Simcag.IdentityService.Infrastructure.Repositories;
@@ -82,9 +83,10 @@ builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(RegisterCommand).Assembly));
 
 // ===== APPLICATION SERVICES =====
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-builder.Services.AddScoped<ICondominioRepository, CondominioRepository>();
+builder.Services.AddScoped<ICondominiumRepository, CondominiumRepository>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IPasswordHasherService, PasswordHasherService>();
 

@@ -7,11 +7,11 @@ using MediatR;
 /// Só é permitido se o CNPJ ainda não estiver cadastrado no sistema.
 /// </summary>
 public sealed record SetupAdminCommand(
-    // Dados do condomínio
+    // Condominium
     string Cnpj,
-    string Nome,
-    string Endereco,
-    string? Telefone,
+    string Name,
+    string Address,
+    string? Phone,
     // Dados do primeiro ADMIN
     string AdminEmail,
     string AdminPassword,
@@ -20,7 +20,7 @@ public sealed record SetupAdminCommand(
 public sealed record SetupAdminResult(
     bool Success,
     string? Error,
-    Guid? CondominioId,
+    Guid? CondominiumId,
     Guid? UserId,
     string? AccessToken,
     string? RefreshToken,
