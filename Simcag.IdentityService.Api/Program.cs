@@ -127,13 +127,16 @@ builder.Services
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
-        // GET /api/auth/validate lê o Bearer no controller (IJwtTokenService). Não validar aqui:
-        // com [AllowAnonymous] um falhanço do JwtBearer ainda pode devolver 401 antes da action.
+        // GET /api/auth/validate e GET /api/condominios/lookup: não validar Bearer aqui (token expirado no browser
+        // quebra pedidos anónimos). validate lê o JWT no controller; lookup é público.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
             {
-                if (context.Request.Path.StartsWithSegments("/api/auth/validate", StringComparison.OrdinalIgnoreCase))
+                // Não validar JWT nestes pedidos: [AllowAnonymous] + Bearer expirado/ inválido no browser
+                // ainda dispara o handler e pode impedir a action (ex.: GET /api/condominios/lookup no registo).
+                if (context.Request.Path.StartsWithSegments("/api/auth/validate", StringComparison.OrdinalIgnoreCase)
+                    || context.Request.Path.StartsWithSegments("/api/condominios/lookup", StringComparison.OrdinalIgnoreCase))
                     context.Token = null;
                 return Task.CompletedTask;
             }
