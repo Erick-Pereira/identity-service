@@ -12,11 +12,12 @@ using Simcag.IdentityService.Domain.Events;
 public sealed class User : IAggregateRoot
 {
     public Guid Id { get; private set; }
-    public TenantId TenantId { get; private set; }
-    public Email Email { get; private set; }
-    public PasswordHash PasswordHash { get; private set; }
-    public string Name { get; private set; }
-    public Role Role { get; private set; }
+    /// <summary>Materializado pelo EF Core; o construtor sem parâmetros não atribui — use <see cref="Create"/>.</summary>
+    public TenantId TenantId { get; private set; } = default!;
+    public Email Email { get; private set; } = default!;
+    public PasswordHash PasswordHash { get; private set; } = default!;
+    public string Name { get; private set; } = default!;
+    public Role Role { get; private set; } = default!;
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
     public bool IsActive { get; private set; }

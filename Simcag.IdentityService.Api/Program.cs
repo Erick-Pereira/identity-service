@@ -13,11 +13,13 @@ using Simcag.IdentityService.Infrastructure.Repositories;
 using Simcag.IdentityService.Infrastructure.Security;
 using System.Text;
 using Simcag.Shared.Hosting;
+using Simcag.Shared.Telemetry;
 
 DotNetEnv.Env.NoClobber().Load();
 ContainerListenConfiguration.NormalizeAspNetCoreListenUrlsInContainer();
 var builder = WebApplication.CreateBuilder(args);
 ContainerListenConfiguration.ApplyDockerListenUrls(builder);
+builder.AddSimcagDistributedTelemetry("Simcag.IdentityService");
 var isTesting = builder.Environment.IsEnvironment("Testing");
 
 static string? GetEnv(params string[] keys)
@@ -165,6 +167,8 @@ builder.Services.AddLogging(configure =>
 
 var app = builder.Build();
 
+app.UseSimcagHttpCorrelationActivityTags();
+
 // ===== DATABASE MIGRATIONS (PostgreSQL; não em ambiente de testes com InMemory) =====
 if (!isTesting)
 {
@@ -186,6 +190,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
+
+app.UseSimcagTelemetryEndpoints();
 
 await app.RunAsync();
 

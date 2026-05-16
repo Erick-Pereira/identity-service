@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using Simcag.IdentityService.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Simcag.Shared.Security;
 
 public sealed class JwtTokenService : IJwtTokenService
 {
@@ -59,7 +60,7 @@ public sealed class JwtTokenService : IJwtTokenService
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new Claim("tenant_id", tenantId.ToString()),
+            new Claim(SimcagClaims.TenantId, tenantId.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, email),
             new Claim("name", name),
             new Claim(ClaimTypes.Role, role),
@@ -122,7 +123,7 @@ public sealed class JwtTokenService : IJwtTokenService
 
             var userIdClaim = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
                 ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var tenantIdClaim = principal.FindFirst("tenant_id")?.Value;
+            var tenantIdClaim = principal.FindFirst(SimcagClaims.TenantId)?.Value;
             var emailClaim = principal.FindFirst(JwtRegisteredClaimNames.Email)?.Value
                 ?? principal.FindFirst(ClaimTypes.Email)?.Value;
 

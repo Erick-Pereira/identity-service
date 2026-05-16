@@ -12,7 +12,8 @@ public sealed class RefreshToken : IAggregateRoot
     public Guid Id { get; private set; }
     public string Token { get; private set; } = string.Empty;
     public Guid UserId { get; private set; }
-    public TenantId TenantId { get; private set; }
+    /// <summary>Materializado pelo EF Core; o construtor sem parâmetros não atribui — use <see cref="Create"/>.</summary>
+    public TenantId TenantId { get; private set; } = default!;
     public DateTime ExpiresAt { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public bool IsRevoked { get; private set; }

@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Simcag.IdentityService.Application.DTOs;
 using Simcag.IdentityService.Application.Interfaces;
 using Simcag.IdentityService.Domain.Entities;
+using Simcag.IdentityService.Domain.ValueObjects;
+using Simcag.Shared.Security;
 using System.Security.Claims;
 using System.Linq;
 
@@ -23,11 +25,11 @@ public sealed class CondominiosController : ControllerBase
         _logger = logger;
     }
 
-    private bool IsAdmin() => User.FindFirstValue(ClaimTypes.Role)?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true;
+    private bool IsAdmin() => User.FindFirstValue(ClaimTypes.Role)?.Equals(Role.AdminValue, StringComparison.OrdinalIgnoreCase) == true;
 
     private Guid? GetTenantId()
     {
-        var raw = User.FindFirst("tenant_id")?.Value;
+        var raw = User.FindFirst(SimcagClaims.TenantId)?.Value;
         return Guid.TryParse(raw, out var id) ? id : null;
     }
 
