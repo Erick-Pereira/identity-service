@@ -4,13 +4,14 @@ using Simcag.IdentityService.Domain.Results;
 
 /// <summary>
 /// Value Object que representa um role (permissão) no sistema.
-/// Roles permitidos: Admin, Sindico, Conselho
+/// Roles permitidos: Admin, Sindico, Conselho, Morador
 /// </summary>
 public sealed class Role : IEquatable<Role>
 {
     public const string AdminValue = "Admin";
     public const string SindicoValue = "Sindico";
     public const string ConselhoValue = "Conselho";
+    public const string MoradorValue = "Morador";
 
     public string Value { get; }
 
@@ -30,17 +31,18 @@ public sealed class Role : IEquatable<Role>
         value = value.Trim();
 
         if (!IsValidRole(value))
-            return Result<Role>.Fail($"Role '{value}' não é válido. Valores permitidos: Admin, Sindico, Conselho");
+            return Result<Role>.Fail($"Role '{value}' não é válido. Valores permitidos: Admin, Sindico, Conselho, Morador");
 
         return Result<Role>.Ok(new Role(value));
     }
 
     private static bool IsValidRole(string value)
-        => value is AdminValue or SindicoValue or ConselhoValue;
+        => value is AdminValue or SindicoValue or ConselhoValue or MoradorValue;
 
     public static Role Admin => new(AdminValue);
     public static Role Sindico => new(SindicoValue);
     public static Role Conselho => new(ConselhoValue);
+    public static Role Morador => new(MoradorValue);
 
     public override bool Equals(object? obj)
         => Equals(obj as Role);

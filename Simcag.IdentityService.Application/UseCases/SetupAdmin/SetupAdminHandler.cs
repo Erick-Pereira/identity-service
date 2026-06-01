@@ -37,73 +37,57 @@ public sealed class SetupAdminHandler : IRequestHandler<SetupAdminCommand, Setup
     {
         _logger.LogInformation("Setup solicitado para CNPJ: {Cnpj}, admin: {Email}", request.Cnpj, request.AdminEmail);
 
-        try
-        {
-            // Verificar se o condomínio já existe (CNPJ já cadastrado)
-            var existing = await _condominiumRepo.GetByCnpjAsync(NormalizeCnpj(request.Cnpj), ct);
-            if (existing is not null)
-                return Fail("CNPJ já cadastrado. Peça ao administrador do condomínio que crie sua conta.");
+        // Verificar se o condomínio já existe (CNPJ já cadastrado)
+        var existing = await _condominiumRepo.GetByCnpjAsync(NormalizeCnpj(request.Cnpj), ct);
+        if (existing is not null)
+            return Fail("CNPJ já cadastrado. Peça ao administrador do condomínio que crie sua conta.");
 
-            // Validar e-mail do admin
-            var emailResult = Email.Create(request.AdminEmail);
-            if (emailResult is Result<Email>.Failure emailFail)
-                return Fail(emailFail.Error);
+        // Validar e-mail do admin
+        var emailResult = Email.Create(request.AdminEmail);
+        if (emailResult is Result<Email>.Failure emailFail)
+            return Fail(emailFail.Error);
 
-            var email = emailResult.Match(x => x, _ => throw new InvalidOperationException());
+        var email = emailResult.Match(x => x, _ => throw new InvalidOperationException());
 
-            // Criar condomínio
-            Condominium condo;
-            try
-            {
-                condo = Condominium.Create(request.Cnpj, request.Name, request.Address, request.Phone);
-            }
-            catch (ArgumentException ex)
-            {
-                return Fail(ex.Message);
-            }
+        // Criar condomínio
+        Condominium condo = Condominium.Create(request.Cnpj, request.Name, request.Address, request.Phone);
 
-            // Criar usuário ADMIN
-            var passwordHash = _passwordHasher.HashPassword(request.AdminPassword);
-            var userResult = User.Create(condo.Id, email.Value, passwordHash, request.AdminName, RoleVo.AdminValue);
-            if (userResult is Result<User>.Failure userFail)
-                return Fail(userFail.Error);
+        // Criar usuário ADMIN
+        var passwordHash = _passwordHasher.HashPassword(request.AdminPassword);
+        var userResult = User.Create(condo.Id, email.Value, passwordHash, request.AdminName, RoleVo.AdminValue);
+        if (userResult is Result<User>.Failure userFail)
+            return Fail(userFail.Error);
 
-            var user = userResult.Match(x => x, _ => throw new InvalidOperationException());
+        var user = userResult.Match(x => x, _ => throw new InvalidOperationException());
 
-            // Persistir condomínio e usuário
-            await _condominiumRepo.AddAsync(condo, ct);
-            await _userRepo.AddAsync(user, ct);
+        // Persistir condomínio e usuário
+        await _condominiumRepo.AddAsync(condo, ct);
+        await _userRepo.AddAsync(user, ct);
 
-            // Gerar tokens
-            var accessToken = await _jwtTokenService.GenerateAccessTokenAsync(
-                user.Id, condo.Id, user.Email.Value, user.Name, user.Role.Value, ct);
+        // Gerar tokens
+        var accessToken = await _jwtTokenService.GenerateAccessTokenAsync(
+            user.Id, condo.Id, user.Email.Value, user.Name, user.Role.Value, ct);
 
-            var refreshToken = await _jwtTokenService.GenerateRefreshTokenAsync(user.Id, condo.Id, ct);
+        var refreshToken = await _jwtTokenService.GenerateRefreshTokenAsync(user.Id, condo.Id, ct);
 
-            var rtResult = RefreshToken.Create(
-                refreshToken,
-                user.Id,
-                condo.Id,
-                DateTime.UtcNow.AddDays(_jwtTokenService.RefreshTokenExpirationDays));
+        var rtResult = RefreshToken.Create(
+            refreshToken,
+            user.Id,
+            condo.Id,
+            DateTime.UtcNow.AddDays(_jwtTokenService.RefreshTokenExpirationDays));
 
-            if (rtResult is Result<RefreshToken>.Failure rtFail)
-                return Fail(rtFail.Error);
+        if (rtResult is Result<RefreshToken>.Failure rtFail)
+            return Fail(rtFail.Error);
 
-            await _refreshTokenRepo.AddAsync(rtResult.Match(x => x, _ => throw new InvalidOperationException()), ct);
+        await _refreshTokenRepo.AddAsync(rtResult.Match(x => x, _ => throw new InvalidOperationException()), ct);
 
-            _logger.LogInformation("Setup complete — condominium: {CondominiumId}, admin: {UserId}", condo.Id, user.Id);
+        _logger.LogInformation("Setup complete — condominium: {CondominiumId}, admin: {UserId}", condo.Id, user.Id);
 
-            return new SetupAdminResult(
-                true, null,
-                condo.Id, user.Id,
-                accessToken, refreshToken,
-                DateTime.UtcNow.AddMinutes(_jwtTokenService.AccessTokenExpirationMinutes));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erro durante setup");
-            return Fail("Erro interno do servidor");
-        }
+        return new SetupAdminResult(
+            true, null,
+            condo.Id, user.Id,
+            accessToken, refreshToken,
+            DateTime.UtcNow.AddMinutes(_jwtTokenService.AccessTokenExpirationMinutes));
     }
 
     private static SetupAdminResult Fail(string? error) =>

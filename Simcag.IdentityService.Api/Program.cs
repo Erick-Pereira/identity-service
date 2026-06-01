@@ -12,6 +12,7 @@ using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
 using Simcag.IdentityService.Infrastructure.Repositories;
 using Simcag.IdentityService.Infrastructure.Security;
 using System.Text;
+using Simcag.Shared.ErrorHandling;
 using Simcag.Shared.Hosting;
 using Simcag.Shared.Telemetry;
 
@@ -153,9 +154,13 @@ if (!isTesting)
     builder.Services.AddHostedService<OverdueConformityWorker>();
 
 // ===== HEALTH CHECKS =====
-var healthChecksBuilder = builder.Services.AddHealthChecks();
-if (!isTesting)
-    healthChecksBuilder.AddNpgSql(connectionString!, name: "PostgreSQL");
+var healthChecksBuilder = builder.Services.AddHealthChecks().AddSimcagLiveSelfCheck();
+if (isTesting)
+    healthChecksBuilder.AddCheck("database", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: [SimcagHealthCheckExtensions.ReadyTag]);
+else
+    healthChecksBuilder.AddNpgSql(connectionString!, name: "PostgreSQL", tags: [SimcagHealthCheckExtensions.ReadyTag]);
+
+builder.Services.AddSimcagProblemDetails();
 
 // ===== LOGGING =====
 builder.Services.AddLogging(configure =>
@@ -167,6 +172,7 @@ builder.Services.AddLogging(configure =>
 
 var app = builder.Build();
 
+app.UseSimcagExceptionHandler();
 app.UseSimcagHttpCorrelationActivityTags();
 
 // ===== DATABASE MIGRATIONS (PostgreSQL; não em ambiente de testes com InMemory) =====
@@ -189,7 +195,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapSimcagHealthChecks();
 
 app.UseSimcagTelemetryEndpoints();
 
