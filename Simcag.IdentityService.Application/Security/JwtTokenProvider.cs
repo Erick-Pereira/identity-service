@@ -78,6 +78,7 @@ public static class JwtTokenProvider
         new("permissions.products.view", "true"),
         new("alertas:view:complete", "true"),
         new("notificacoes:push:read", "true"),
+        new("notificacoes:preferences:write", "true"),
         new(SimcagClaims.SodCanExecuteAudit, "false"),
         new("permissions.auditoria.upload", "false"),
         new("compras:create", "false"),
@@ -105,6 +106,7 @@ public static class JwtTokenProvider
         new("alertas:manage", "true"),
         new("notificacoes:templates:manage", "true"),
         new("notificacoes:issue", "true"),
+        new("notificacoes:preferences:write", "true"),
         new("insights:read", "true"),
         new(SimcagClaims.SodCanApproveOwnPurchase, "false"),
     ];

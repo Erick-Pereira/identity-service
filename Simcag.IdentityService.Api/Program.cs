@@ -8,12 +8,17 @@ using Simcag.IdentityService.Api.Workers;
 using Simcag.IdentityService.Application.Interfaces;
 using Simcag.IdentityService.Application.Services;
 using Simcag.IdentityService.Application.UseCases.Register;
+using Simcag.IdentityService.Domain.ValueObjects;
 using Simcag.IdentityService.Infrastructure.Persistence.DbContext;
 using Simcag.IdentityService.Infrastructure.Repositories;
 using Simcag.IdentityService.Infrastructure.Security;
 using System.Text;
 using Simcag.Shared.ErrorHandling;
 using Simcag.Shared.Hosting;
+using Simcag.Shared.Messaging.Configuration;
+using Simcag.Shared.Messaging.Extensions;
+using Simcag.Shared.Messaging.Rpc;
+using Simcag.Shared.Messaging.Rpc.Contracts;
 using Simcag.Shared.Telemetry;
 
 DotNetEnv.Env.NoClobber().Load();
@@ -151,7 +156,33 @@ builder.Services.AddAuthorization();
 
 // ===== BACKGROUND WORKERS =====
 if (!isTesting)
+{
     builder.Services.AddHostedService<OverdueConformityWorker>();
+
+    var rabbitMqOptions = new RabbitMqOptions
+    {
+        Host = GetEnv("RABBITMQ__HOST", "RABBITMQ_HOST") ?? "localhost",
+        Port = int.Parse(GetEnv("RABBITMQ__PORT", "RABBITMQ_PORT") ?? "5672"),
+        UserName = GetEnv("RABBITMQ__USERNAME", "RABBITMQ_USERNAME") ?? "guest",
+        Password = GetEnv("RABBITMQ__PASSWORD", "RABBITMQ_PASSWORD") ?? "guest",
+        VirtualHost = GetEnv("RABBITMQ__VIRTUALHOST", "RABBITMQ_VIRTUALHOST") ?? "/"
+    };
+    rabbitMqOptions.ApplyMessageSigningFromEnvironment();
+    builder.Services.AddRabbitMqMessaging(rabbitMqOptions);
+
+    builder.Services.AddRabbitMqRpcHandler<GetNotificationRecipientsRpcRequest, GetNotificationRecipientsRpcResponse>(
+        RpcQueues.IdentityGetNotificationRecipients,
+        async (sp, request, ct) =>
+        {
+            var users = sp.GetRequiredService<IUserRepository>();
+            var roles = new[] { Role.AdminValue, Role.SindicoValue, Role.ConselhoValue };
+            var rows = await users.GetActiveByTenantAndRolesAsync(request.TenantId, roles, ct);
+            return new GetNotificationRecipientsRpcResponse
+            {
+                UserIds = rows.Select(u => u.Id).Where(id => id != Guid.Empty).Distinct().ToList()
+            };
+        });
+}
 
 // ===== HEALTH CHECKS =====
 var healthChecksBuilder = builder.Services.AddHealthChecks().AddSimcagLiveSelfCheck();

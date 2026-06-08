@@ -36,6 +36,27 @@ public sealed class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Email == emailVo && u.TenantId == tenantVo && u.IsActive, ct);
     }
 
+    public async Task<IReadOnlyList<User>> GetActiveByTenantAndRolesAsync(
+        Guid tenantId,
+        IReadOnlyCollection<string> roles,
+        CancellationToken ct)
+    {
+        if (roles.Count == 0)
+            return Array.Empty<User>();
+
+        var tenantVo = TenantId.FromStorage(tenantId);
+        var roleSet = roles.Select(r => r.Trim()).Where(r => r.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var rows = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => u.TenantId == tenantVo && u.IsActive)
+            .ToListAsync(ct);
+
+        return rows
+            .Where(u => roleSet.Contains(u.Role.Value))
+            .ToList();
+    }
+
     public async Task AddAsync(User user, CancellationToken ct)
     {
         await _dbContext.Users.AddAsync(user, ct);

@@ -6,6 +6,10 @@ public interface IUserRepository
 {
     Task<User?> GetByIdAsync(Guid id, Guid tenantId, CancellationToken ct);
     Task<User?> GetByEmailAndTenantAsync(string email, Guid tenantId, CancellationToken ct);
+    Task<IReadOnlyList<User>> GetActiveByTenantAndRolesAsync(
+        Guid tenantId,
+        IReadOnlyCollection<string> roles,
+        CancellationToken ct);
     Task AddAsync(User user, CancellationToken ct);
     Task UpdateAsync(User user, CancellationToken ct);
     Task<bool> EmailExistsAsync(string email, Guid tenantId, CancellationToken ct);
