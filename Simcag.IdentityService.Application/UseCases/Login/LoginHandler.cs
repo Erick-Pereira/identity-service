@@ -1,4 +1,4 @@
-﻿namespace Simcag.IdentityService.Application.UseCases.Login;
+namespace Simcag.IdentityService.Application.UseCases.Login;
 
 using MediatR;
 using Simcag.IdentityService.Application.Interfaces;
@@ -36,7 +36,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginCom
             if (emailResult is Domain.Results.Result<Email>.Failure emailFail)
             {
                 _logger.LogWarning("Email inválido: {Error}", emailFail.Error);
-                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null, null);
+                return new LoginCommandResult(false, LoginMessages.InvalidCredentials, null, null, null, null);
             }
 
             var email = emailResult.Match(x => x, e => throw new InvalidOperationException());
@@ -45,17 +45,33 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, LoginCom
             var user = await _userRepository.GetByEmailAndTenantAsync(
                 email.Value, request.TenantId, ct);
 
-            if (user == null || !user.IsActive)
+            if (user == null)
             {
-                _logger.LogWarning("Usuário não encontrado ou inativo: {Email}", email.Value);
-                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null, null);
+                var existsElsewhere = await _userRepository.ExistsByEmailInAnyTenantAsync(email.Value, ct);
+                if (existsElsewhere)
+                {
+                    _logger.LogWarning(
+                        "Email {Email} existe noutro tenant; tenant pedido: {TenantId}",
+                        email.Value,
+                        request.TenantId);
+                    return new LoginCommandResult(false, LoginMessages.WrongTenant, null, null, null, null);
+                }
+
+                _logger.LogWarning("Usuário não encontrado: {Email}", email.Value);
+                return new LoginCommandResult(false, LoginMessages.InvalidCredentials, null, null, null, null);
+            }
+
+            if (!user.IsActive)
+            {
+                _logger.LogWarning("Usuário inativo: {Email}", email.Value);
+                return new LoginCommandResult(false, LoginMessages.InvalidCredentials, null, null, null, null);
             }
 
             // Verificar senha
             if (!user.VerifyPassword(request.Password))
             {
                 _logger.LogWarning("Senha incorreta para usuário: {UserId}", user.Id);
-                return new LoginCommandResult(false, "Email ou senha inválidos", null, null, null, null);
+                return new LoginCommandResult(false, LoginMessages.InvalidCredentials, null, null, null, null);
             }
 
             // Gerar tokens

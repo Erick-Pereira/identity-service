@@ -27,6 +27,15 @@ public sealed class CondominiosController : ControllerBase
 
     private bool IsAdmin() => User.FindFirstValue(ClaimTypes.Role)?.Equals(Role.AdminValue, StringComparison.OrdinalIgnoreCase) == true;
 
+    private bool CanManageConformities()
+    {
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        if (string.IsNullOrWhiteSpace(role)) return false;
+        return role.Equals(Role.AdminValue, StringComparison.OrdinalIgnoreCase)
+            || role.Equals(Role.SindicoValue, StringComparison.OrdinalIgnoreCase)
+            || role.Equals(Role.ConselhoValue, StringComparison.OrdinalIgnoreCase);
+    }
+
     private Guid? GetTenantId()
     {
         var raw = User.FindFirst(SimcagClaims.TenantId)?.Value;
@@ -171,6 +180,7 @@ public sealed class CondominiosController : ControllerBase
         {
             var tenantId = GetTenantId();
             if (tenantId != id) return Forbid();
+            if (!CanManageConformities()) return Forbid();
         }
 
         var condo = await _repo.GetByIdAsync(id, ct);
@@ -198,6 +208,7 @@ public sealed class CondominiosController : ControllerBase
         {
             var tenantId = GetTenantId();
             if (tenantId != id) return Forbid();
+            if (!CanManageConformities()) return Forbid();
         }
 
         var item = await _repo.GetConformityAsync(id, itemId, ct);
@@ -215,6 +226,7 @@ public sealed class CondominiosController : ControllerBase
         {
             var tenantId = GetTenantId();
             if (tenantId != id) return Forbid();
+            if (!CanManageConformities()) return Forbid();
         }
 
         var item = await _repo.GetConformityAsync(id, itemId, ct);

@@ -13,6 +13,7 @@ public interface IUserRepository
     Task AddAsync(User user, CancellationToken ct);
     Task UpdateAsync(User user, CancellationToken ct);
     Task<bool> EmailExistsAsync(string email, Guid tenantId, CancellationToken ct);
+    Task<bool> ExistsByEmailInAnyTenantAsync(string email, CancellationToken ct);
 }
 
 public interface IRefreshTokenRepository

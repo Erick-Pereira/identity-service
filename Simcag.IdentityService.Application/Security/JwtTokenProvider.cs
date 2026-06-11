@@ -55,9 +55,11 @@ public static class JwtTokenProvider
     [
         new("permissions.dashboard.read:my-data-only", "true"),
         new("auditoria:view-report", "true"),
+        new("auditoria:view:detailed", "true"),
         new("insights:read", "true"),
         new("obrigacoes:read:own", "true"),
         new("compras:read:summary", "true"),
+        new("compras:read:detailed", "true"),
         new("alertas:view:directed", "true"),
         new(SimcagClaims.SodCanExecuteAudit, "false"),
         new(SimcagClaims.SodCanApproveOwnPurchase, "false"),

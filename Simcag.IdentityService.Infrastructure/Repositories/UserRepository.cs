@@ -80,4 +80,13 @@ public sealed class UserRepository : IUserRepository
             .AsNoTracking()
             .AnyAsync(u => u.Email == emailVo && u.TenantId == tenantVo, ct);
     }
+
+    public async Task<bool> ExistsByEmailInAnyTenantAsync(string email, CancellationToken ct)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        var emailVo = Email.FromStorage(normalized);
+        return await _dbContext.Users
+            .AsNoTracking()
+            .AnyAsync(u => u.Email == emailVo && u.IsActive, ct);
+    }
 }

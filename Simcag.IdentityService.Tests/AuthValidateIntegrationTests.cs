@@ -60,4 +60,36 @@ public sealed class AuthValidateIntegrationTests : IClassFixture<IdentityApiFact
         Assert.False(string.IsNullOrWhiteSpace(body.UserId));
         Assert.Equal(tenantId.ToString(), body.TenantId);
     }
+
+    [Fact]
+    public async Task Login_wrong_tenant_returns_specific_message()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        var email = $"user_{Guid.NewGuid():N}@example.test";
+        const string password = "password12";
+
+        var register = new RegisterRequest
+        {
+            TenantId = tenantA,
+            Email = email,
+            Password = password,
+            Name = "Test User",
+            Role = "Morador"
+        };
+
+        using var regResp = await client.PostAsJsonAsync("/api/auth/register", register);
+        Assert.Equal(HttpStatusCode.Created, regResp.StatusCode);
+
+        using var loginResp = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new LoginRequest { TenantId = tenantB, Email = email, Password = password });
+        Assert.Equal(HttpStatusCode.Unauthorized, loginResp.StatusCode);
+
+        var loginWrap = await loginResp.Content.ReadFromJsonAsync<ApiResponse<string>>();
+        Assert.NotNull(loginWrap?.Error);
+        Assert.Contains("vinculado ao condomínio", loginWrap.Error, StringComparison.OrdinalIgnoreCase);
+    }
 }
